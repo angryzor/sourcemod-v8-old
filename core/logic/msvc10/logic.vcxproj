@@ -46,6 +46,9 @@
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">sourcemod.logic</TargetName>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">sourcemod.logic</TargetName>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <IncludePath>C:\Users\Ruben Tytgat\Documents\Programming\v8\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
@@ -150,6 +153,8 @@
     <ClCompile Include="..\thread\BaseWorker.cpp" />
     <ClCompile Include="..\thread\ThreadWorker.cpp" />
     <ClCompile Include="..\thread\WinThreads.cpp" />
+    <ClCompile Include="PluginSysV8.cpp" />
+    <ClCompile Include="PluginSysWrapper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\public\sm_platform.h" />
@@ -179,6 +184,8 @@
     <ClInclude Include="..\thread\ThreadWorker.h" />
     <ClInclude Include="..\thread\WinThreads.h" />
     <ClInclude Include="..\Translator.h" />
+    <ClInclude Include="PluginSysV8.h" />
+    <ClInclude Include="PluginSysWrapper.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
