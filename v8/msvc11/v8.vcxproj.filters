@@ -21,6 +21,12 @@
     <ClInclude Include="..\V8Manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\PluginInfo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SPAPIEmulation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Plugin.cpp">
@@ -29,5 +35,14 @@
     <ClCompile Include="..\V8Manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\PluginInfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SPAPIEmulation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ClassDiagram.cd" />
   </ItemGroup>
 </Project>

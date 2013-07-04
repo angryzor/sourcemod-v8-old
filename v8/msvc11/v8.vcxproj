@@ -41,9 +41,11 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>$(V8_HOME)\include;$(SolutionDir)..\public;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>G:\Users\Ruben Tytgat\Documents\Programmeerprojecten\v8\include;$(SolutionDir)public;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -79,11 +81,18 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\Plugin.h" />
+    <ClInclude Include="..\PluginInfo.h" />
+    <ClInclude Include="..\SPAPIEmulation.h" />
     <ClInclude Include="..\V8Manager.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Plugin.cpp" />
+    <ClCompile Include="..\PluginInfo.cpp" />
+    <ClCompile Include="..\SPAPIEmulation.cpp" />
     <ClCompile Include="..\V8Manager.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ClassDiagram.cd" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
