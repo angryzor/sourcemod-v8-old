@@ -3,6 +3,7 @@
 
 #include <sourcepawn/sp_vm_api.h>
 #include <vector>
+#include <cstdarg>
 
 namespace SMV8
 {
@@ -113,6 +114,8 @@ namespace SMV8
 			virtual int Execute(uint32_t code_addr, cell_t *result);
 			virtual cell_t ThrowNativeErrorEx(int error, const char *msg, ...);
 			virtual cell_t ThrowNativeError(const char *msg, ...);
+			virtual cell_t ThrowNativeErrorEx(int error, const char *msg, va_list args);
+			virtual cell_t ThrowNativeError(const char *msg, va_list args);
 			virtual IPluginFunction *GetFunctionByName(const char *public_name);
 			virtual IPluginFunction *GetFunctionById(funcid_t func_id);
 			virtual SourceMod::IdentityToken_t *GetIdentity();
@@ -136,6 +139,8 @@ namespace SMV8
 			void *keys[4]; // <-- What... the... crap...
 			bool keys_set[4]; // <-- What... the... crap...
 			std::vector<cell_t*> allocations;
+			bool inExec;
+			std::string errMessage;
 		};
 
 		class ContextTrace : public IContextTrace

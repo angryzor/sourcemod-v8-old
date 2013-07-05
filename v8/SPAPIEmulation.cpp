@@ -156,11 +156,12 @@ namespace SMV8
 		int PluginContext::StringToLocal(cell_t local_addr, size_t bytes, const char *source)
 		{
 			char *dest;
-			size_t len;
+			int err;
 
-			LocalToString(local_addr, &dest);
+			if(!(err = LocalToString(local_addr, &dest)))
+				return err;
 
-			len = strlen(source);
+			size_t len = strlen(source);
 			if(len >= bytes)
 			{
 				len = bytes - 1;
@@ -172,11 +173,76 @@ namespace SMV8
 			return SP_ERROR_NONE;
 		}
 
+		inline int __CheckValidChar(char *c)
+		{
+			int count;
+			int bytecount = 0;
+
+			for (count=1; (*c & 0xC0) == 0x80; count++)
+			{
+				c--;
+			}
+
+			switch (*c & 0xF0)
+			{
+			case 0xC0:
+			case 0xD0:
+				{
+					bytecount = 2;
+					break;
+				}
+			case 0xE0:
+				{
+					bytecount = 3;
+					break;
+				}
+			case 0xF0:
+				{
+					bytecount = 4;
+					break;
+				}
+			}
+
+			if (bytecount != count)
+			{
+				return count;
+			}
+
+			return 0;
+		}
+
 		int PluginContext::StringToLocalUTF8(cell_t local_addr, 
 										size_t maxbytes, 
 										const char *source, 
 										size_t *wrtnbytes)
 		{
+			char *dest;
+			bool needtocheck;
+			int err;
+
+			if(!(err = LocalToString(local_addr, &dest)))
+				return err;
+
+			size_t len = strlen(source);
+			if(len >= maxbytes)
+			{
+				len = maxbytes - 1;
+				needtocheck = true;
+			}
+
+			memmove(dest, source, len);
+			if ((dest[len-1] & 1<<7) && needtocheck)
+			{
+				len -= __CheckValidChar(dest+len-1);
+			}
+			dest[len] = '\0';
+
+			if (wrtnbytes)
+			{
+				*wrtnbytes = len;
+			}
+	
+			return SP_ERROR_NONE;
 		}
 
 		int PluginContext::PushCell(cell_t value)
@@ -219,20 +285,78 @@ namespace SMV8
 			return SP_ERROR_ABORTED;
 		}
 
-		cell_t PluginContext::ThrowNativeErrorEx(int error, const char *msg, ...){}
-		cell_t PluginContext::ThrowNativeError(const char *msg, ...){}
-		IPluginFunction *PluginContext::GetFunctionByName(const char *public_name){}
-		IPluginFunction *PluginContext::GetFunctionById(funcid_t func_id){}
-		SourceMod::IdentityToken_t *PluginContext::GetIdentity(){}
-		cell_t *PluginContext::GetNullRef(SP_NULL_TYPE type){}
-		int PluginContext::LocalToStringNULL(cell_t local_addr, char **addr){}
+		cell_t PluginContext::ThrowNativeErrorEx(int error, const char *msg, ...)
+		{
+			va_list args;
+			va_start(args, msg);
+			cell_t res = ThrowNativeErrorEx(error, msg, args);
+			va_end(args);
+			return res;
+		}
+
+		cell_t PluginContext::ThrowNativeError(const char *msg, ...)
+		{
+			va_list args;
+			va_start(args, msg);
+			cell_t res = ThrowNativeError(msg, args);
+			va_end(args);
+			return res;
+		}
+
+		cell_t PluginContext::ThrowNativeErrorEx(int error, const char *msg, va_list args)
+		{
+			if(!inExec)
+			{
+				return 0;
+			}
+
+			nativeError = error;
+
+			if(msg)
+			{
+				errMessage = msg;
+			}
+		}
+
+		cell_t PluginContext::ThrowNativeError(const char *msg, va_list args)
+		{
+			return ThrowNativeErrorEx(SP_ERROR_NATIVE, msg, args);
+		}
+
+		SourceMod::IdentityToken_t *PluginContext::GetIdentity()
+		{
+			SourceMod::IdentityToken_t *tok;
+
+			if (GetKey(1, (void **)&tok))
+			{
+				return tok;
+			}
+
+			return NULL;
+		}
+
+		cell_t *PluginContext::GetNullRef(SP_NULL_TYPE type)
+		{
+			// NULL has already been resolved by the marshalling system.
+			// Any JS null references have been turned into NULL
+			return NULL;
+		}
+
+		int PluginContext::LocalToStringNULL(cell_t local_addr, char **addr)
+		{
+			// NULL has already been resolved by the marshalling system.
+			LocalToString(local_addr,addr);
+		}
 
 		int PluginContext::BindNativeToIndex(uint32_t index, SPVM_NATIVE_FUNC native)
 		{
 			return SP_ERROR_ABORTED;
 		}
 
-		bool PluginContext::IsInExec(){}
+		bool PluginContext::IsInExec()
+		{
+			return inExec;
+		}
 
 		IPluginRuntime *PluginContext::GetRuntime()
 		{
@@ -244,6 +368,12 @@ namespace SMV8
 			unsigned int num_params,
 			cell_t *result)
 		{
+			bool savedInExec = inExec;
+			inExec = true;
+
+
+
+			inExec = savedInExec;
 		}
 
 		int PluginContext::GetLastNativeError()
@@ -251,7 +381,11 @@ namespace SMV8
 			return nativeError;
 		}
 
-		cell_t *PluginContext::GetLocalParams(){}
+		cell_t *PluginContext::GetLocalParams()
+		{
+			// TODO: Implement this ugly hack
+		}
+
 		void PluginContext::SetKey(int k, void *value)
 		{
 			if (k < 1 || k > 4)
