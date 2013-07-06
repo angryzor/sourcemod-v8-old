@@ -69,6 +69,10 @@ namespace SMV8
 			virtual size_t GetMemUsage();
 			virtual unsigned char *GetCodeHash();
 			virtual unsigned char *GetDataHash();
+		private:
+			std::vector<sp_native_t*> natives;
+			std::vector<sp_public_t*> publics;
+			std::vector<sp_pubvar_t*> pubvars;
 		};
 
 		/* Bridges between the SPAPI and V8 implementation by holding an internal stack only used during 

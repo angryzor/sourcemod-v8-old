@@ -1,0 +1,33 @@
+require("sourcemod")
+require("sdktools")
+require("smac")
+
+plugin.info = {
+    name: "SMAC Spinhack Detector",
+    author: SMAC_AUTHOR,
+    description: "Monitors players to detect the use of spinhacks",
+    version: SMAC_VERSION,
+    url: SMAC_URL
+};
+
+timerCheckSpins = function(timer) {
+	for(new i = 1; i <= game.MaxClients; i++)
+	{
+	}
+}
+
+function SpinPlayer() {
+	this.prevAngle = 0;
+	this.angleDiff = 0;
+	this.sensitivity = NaN;
+}
+
+var myForward = function() {
+	translation.loadPhrases("smac.phrases");
+	new Timer(1.0, timerCheckSpins, null, Timer.type.repeat);
+	
+}
+forwards.OnPluginStart = myForward;
+myForward();
+forwards.OnPluginStart();
+forwards.register("OnPluginStart",myForward);
