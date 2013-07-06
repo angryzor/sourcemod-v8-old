@@ -11,8 +11,7 @@ namespace SMV8
 
 		sp_context_t *PluginContext::GetContext()
 		{
-			// TODO: Don't know what to do with this. It's deprecated, evil and doesn't cooperate with my emulation
-			return NULL;
+			return reinterpret_cast<sp_context_t *>(this);
 		}
 
 		bool PluginContext::IsDebugging()
