@@ -47,6 +47,7 @@ namespace SMV8
 				return SP_ERROR_INVALID_ADDRESS;
 			}
 
+			delete [] allocations.back();
 			allocations.pop_back();
 
 			return SP_ERROR_NONE;
@@ -57,6 +58,11 @@ namespace SMV8
 			if(allocations.empty() || local_addr < 0 || local_addr >= allocations.size())
 			{
 				return SP_ERROR_INVALID_ADDRESS;
+			}
+
+			for(auto i = allocations.begin(); i != allocations.end(); i++)
+			{
+				delete [] *i;
 			}
 
 			allocations.erase(allocations.begin() + local_addr, allocations.end());
