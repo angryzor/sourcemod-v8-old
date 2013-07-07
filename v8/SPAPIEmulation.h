@@ -4,12 +4,38 @@
 #include <sourcepawn/sp_vm_api.h>
 #include <vector>
 #include <cstdarg>
+#include <v8.h>
 
 namespace SMV8
 {
 	namespace SPEmulation
 	{
 		using namespace SourcePawn;
+		using namespace v8;
+
+		enum NativeParamType
+		{
+			INTEGER,
+			FLOAT,
+			STRING,
+			REFERENCE,
+			VARARG
+		};
+
+		struct NativeParamInfo
+		{
+			NativeParamInfo(std::string name, NativeParamType type) : name(name), type(type)
+			{}
+			std::string name;
+			NativeParamType type;
+		};
+
+		struct NativeData
+		{
+			std::string name;
+			std::vector<NativeParamInfo> params;
+			sp_native_t state;
+		};
 
 		class PluginFunction : public IPluginFunction
 		{
@@ -45,6 +71,7 @@ namespace SMV8
 		class PluginRuntime : public IPluginRuntime
 		{
 		public:
+			PluginRuntime();
 			virtual ~PluginRuntime()
 			{
 			}
@@ -69,10 +96,21 @@ namespace SMV8
 			virtual size_t GetMemUsage();
 			virtual unsigned char *GetCodeHash();
 			virtual unsigned char *GetDataHash();
+		protected:
+			Handle<ObjectTemplate> GenerateGlobalObject();
+			Handle<ObjectTemplate> GenerateNativesObject();
+			Handle<ObjectTemplate> GeneratePluginObject();
+			static void DeclareNative(const FunctionCallbackInfo<Value>& info);
+			void InsertNativeParams(NativeData& nd, Handle<Array> signature);
+			NativeParamInfo CreateNativeParamInfo(Handle<Object> paramInfo);
 		private:
-			std::vector<sp_native_t*> natives;
+			std::vector<NativeData> natives;
 			std::vector<sp_public_t*> publics;
 			std::vector<sp_pubvar_t*> pubvars;
+			bool pauseState;
+			Isolate* isolate;
+			Persistent<Context> *v8Context;
+			IPluginContext defaultContext;
 		};
 
 		/* Bridges between the SPAPI and V8 implementation by holding an internal stack only used during 
