@@ -37,6 +37,12 @@ namespace SMV8
 			sp_native_t state;
 		};
 
+		struct PubvarData
+		{
+			cell_t local_addr;
+			sp_pubvar_t pubvar;
+		};
+
 		class PluginFunction : public IPluginFunction
 		{
 		public:
@@ -71,10 +77,8 @@ namespace SMV8
 		class PluginRuntime : public IPluginRuntime
 		{
 		public:
-			PluginRuntime();
-			virtual ~PluginRuntime()
-			{
-			}
+			PluginRuntime(Isolate* isolate, std::string code);
+			virtual ~PluginRuntime();
 			virtual IPluginDebugInfo *GetDebugInfo();
 			virtual int FindNativeByName(const char *name, uint32_t *index);
 			virtual int GetNativeByIndex(uint32_t index, sp_native_t **native);
@@ -103,14 +107,16 @@ namespace SMV8
 			static void DeclareNative(const FunctionCallbackInfo<Value>& info);
 			void InsertNativeParams(NativeData& nd, Handle<Array> signature);
 			NativeParamInfo CreateNativeParamInfo(Handle<Object> paramInfo);
+			void ExtractPluginInfo();
+			void LoadEmulatedString(const std::string& realstr, cell_t& local_addr_target);
 		private:
 			std::vector<NativeData> natives;
-			std::vector<sp_public_t*> publics;
-			std::vector<sp_pubvar_t*> pubvars;
+			std::vector<sp_public_t> publics;
+			std::vector<PubvarData> pubvars;
 			bool pauseState;
 			Isolate* isolate;
-			Persistent<Context> *v8Context;
-			IPluginContext defaultContext;
+			Persistent<Context> v8Context;
+			PluginContext ctx;
 		};
 
 		/* Bridges between the SPAPI and V8 implementation by holding an internal stack only used during 
@@ -118,7 +124,7 @@ namespace SMV8
 		class PluginContext : public IPluginContext
 		{
 		public:
-			virtual ~PluginContext() { };
+			virtual ~PluginContext();
 		public:
 			virtual IVirtualMachine *GetVirtualMachine();
 			virtual sp_context_t *GetContext();

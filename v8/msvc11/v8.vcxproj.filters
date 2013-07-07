@@ -38,7 +38,10 @@
     <ClCompile Include="..\PluginInfo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\SPAPIEmulation.cpp">
+    <ClCompile Include="..\SPAPIPluginContextEmulation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SPAPIPluginRuntimeEmulation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -88,7 +88,8 @@
   <ItemGroup>
     <ClCompile Include="..\Plugin.cpp" />
     <ClCompile Include="..\PluginInfo.cpp" />
-    <ClCompile Include="..\SPAPIEmulation.cpp" />
+    <ClCompile Include="..\SPAPIPluginContextEmulation.cpp" />
+    <ClCompile Include="..\SPAPIPluginRuntimeEmulation.cpp" />
     <ClCompile Include="..\V8Manager.cpp" />
   </ItemGroup>
   <ItemGroup>

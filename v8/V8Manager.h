@@ -4,19 +4,28 @@
 #include <v8.h>
 
 #include "PluginInfo.h"
+#include <ISourceMod.h>
+#include <sourcepawn/sp_vm_api.h>
+#include <string>
 
 namespace SMV8
 {
 	using namespace v8;
+	using namespace SourceMod;
 
 	class Manager
 	{
 	public:
-		Manager(void);
+		Manager(ISourceMod *sm);
+		void LoadCoffeeCompiler();
+		SourcePawn::IPluginRuntime *LoadPlugin(std::string location);
+		std::string CompileCoffee(const std::string& coffee);
 		virtual ~Manager(void);
 	private:
 		Handle<Object> BuildGlobalObject(PluginInfo& pi) const;
-		Isolate* isolate;
+		Persistent<Context> coffeeCompilerContext;
+		Isolate *isolate;
+		ISourceMod *sm;
 	};
 }
 

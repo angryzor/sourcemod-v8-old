@@ -4,6 +4,11 @@ namespace SMV8
 {
 	namespace SPEmulation
 	{
+		PluginContext::~PluginContext()
+		{
+			HeapRelease(0);
+		}
+
 		IVirtualMachine *PluginContext::GetVirtualMachine()
 		{
 			return NULL;

@@ -9,20 +9,42 @@ namespace SMV8
 		using namespace SourceMod;
 		using namespace v8;
 
-		PluginRuntime::PluginRuntime()
-			: pauseState(false)
+		struct sm_plugininfo_s_t
 		{
-			isolate = Isolate::GetCurrent();
+			std::string name;
+			std::string description;
+			std::string author;
+			std::string version;
+			std::string url;
+		};
+
+		struct sm_plugininfo_c_t
+		{
+			cell_t name;
+			cell_t description;
+			cell_t author;
+			cell_t version;
+			cell_t url;
+		};
+
+		PluginRuntime::PluginRuntime(Isolate* isolate, std::string code)
+			: pauseState(false), isolate(isolate)
+		{
 			HandleScope handle_scope(isolate);
 
 			// Create a new context for this plugin, store it in a persistent handle.
 			Handle<Context> ourContext = Context::New(isolate, NULL, GenerateGlobalObject());
-			v8Context = new Persistent<Context>(isolate, ourContext);
+			v8Context.Reset(isolate, ourContext);
+
+			Handle<Script> script = Script::Compile(String::New(code.c_str()));
+			script->Run();
+
+			ExtractPluginInfo();
 		}
 
 		PluginRuntime::~PluginRuntime()
 		{
-			delete v8Context;
+			v8Context.Dispose();
 		}
 
 		/**
@@ -103,6 +125,7 @@ namespace SMV8
 		{
 			HandleScope handle_scope(isolate);
 			Handle<ObjectTemplate> plugin = ObjectTemplate::New();
+			plugin->Set("info",ObjectTemplate::New()->NewInstance());
 			return handle_scope.Close(plugin);
 		}
 
@@ -158,16 +181,83 @@ namespace SMV8
 		/*
 		 * Fake pubvars to publish dependencies
 		 */
+		void PluginRuntime::ExtractPluginInfo()
+		{
+			HandleScope handle_scope(isolate);
+			sm_plugininfo_s_t realInfo;
+			sm_plugininfo_c_t emulatedInfo;
+
+			Handle<Context> context(Handle<Context>::New(isolate,v8Context));
+			Handle<Object> global(context->Global());
+			Handle<Object> plugin(global->Get(String::New("plugin")).As<Object>());
+			Handle<Object> info(plugin->Get(String::New("info")).As<Object>());
+
+			realInfo.name = *String::AsciiValue(info->Get(String::New("name")).As<String>());
+			realInfo.description = *String::AsciiValue(info->Get(String::New("description")).As<String>());
+			realInfo.author = *String::AsciiValue(info->Get(String::New("author")).As<String>());
+			realInfo.version = *String::AsciiValue(info->Get(String::New("version")).As<String>());
+			realInfo.url = *String::AsciiValue(info->Get(String::New("url")).As<String>());
+
+			LoadEmulatedString(realInfo.name, emulatedInfo.name);
+			LoadEmulatedString(realInfo.description, emulatedInfo.description);
+			LoadEmulatedString(realInfo.author, emulatedInfo.author);
+			LoadEmulatedString(realInfo.version, emulatedInfo.version);
+			LoadEmulatedString(realInfo.url, emulatedInfo.url);
+
+			cell_t local_addr;
+			cell_t *phys_addr;
+			ctx.HeapAlloc(sizeof(sm_plugininfo_c_t) / sizeof(cell_t), &local_addr, &phys_addr);
+			memcpy(phys_addr, &emulatedInfo, sizeof(sm_plugininfo_c_t));
+
+			PubvarData pd;
+			pd.local_addr = local_addr;
+			pd.pubvar.name = "myinfo";
+			pd.pubvar.offs = phys_addr;
+
+			pubvars.push_back(pd);
+		}
+
+		void PluginRuntime::LoadEmulatedString(const std::string& realstr, cell_t& local_addr_target)
+		{
+			cell_t local_addr;
+			cell_t *phys_addr;
+			ctx.HeapAlloc(realstr.size() + 1, &local_addr, &phys_addr);
+			ctx.StringToLocal(local_addr, realstr.size(), realstr.c_str());
+			local_addr_target = local_addr;
+		}
+
 		int PluginRuntime::GetPubvarByIndex(uint32_t index, sp_pubvar_t **pubvar)
 		{
+			if(index >= pubvars.size())
+				return SP_ERROR_INDEX;
+
+			*pubvar = &pubvars[index].pubvar;
+
+			return SP_ERROR_NONE;
 		}
 
 		int PluginRuntime::FindPubvarByName(const char *name, uint32_t *index)
 		{
+			for(uint32_t i = 0; i < pubvars.size(); i++)
+			{
+				if(!strcmp(pubvars[i].pubvar.name,name))
+				{
+					*index = i;
+				}
+			}
+
+			return SP_ERROR_NOT_FOUND;
 		}
 
 		int PluginRuntime::GetPubvarAddrs(uint32_t index, cell_t *local_addr, cell_t **phys_addr)
 		{
+			if(index >= pubvars.size())
+				return SP_ERROR_INDEX;
+
+			*local_addr = pubvars[index].local_addr;
+			*phys_addr = pubvars[index].pubvar.offs;
+
+			return SP_ERROR_NONE;
 		}
 
 		uint32_t PluginRuntime::GetPubVarsNum()
@@ -185,7 +275,7 @@ namespace SMV8
 
 		IPluginContext *PluginRuntime::GetDefaultContext()
 		{
-			return &defaultContext;
+			return &ctx;
 		}
 
 		bool PluginRuntime::IsDebugging()
@@ -210,14 +300,17 @@ namespace SMV8
 
 		size_t PluginRuntime::GetMemUsage()
 		{
+			return 0;
 		}
 
 		unsigned char *PluginRuntime::GetCodeHash()
 		{
+			return (unsigned char *)"34234663464";
 		}
 
 		unsigned char *PluginRuntime::GetDataHash()
 		{
+			return (unsigned char *)"453253543";
 		}	
 	}
 }
