@@ -37,42 +37,69 @@ namespace SMV8
 		/* "heap" management -_-' */
 		int PluginContext::HeapAlloc(unsigned int cells, cell_t *local_addr, cell_t **phys_addr)
 		{
-			cell_t* mem = new cell_t[cells];
-			*local_addr = allocations.size();
-			allocations.push_back(mem);
-			*phys_addr = mem;
+			CheckHeapSize(cells + 1);
+
+			cell_t *size = (cell_t*)hp;
+			hp += sizeof(cell_t);
+			*size = cells;
+
+			*phys_addr = (cell_t*)hp;
+			*local_addr = hp - heap;
+			hp += cells * sizeof(cell_t);
 
 			return SP_ERROR_NONE;
 		}
 
 		int PluginContext::HeapPop(cell_t local_addr)
 		{
-			if(allocations.empty() || local_addr != allocations.size() - 1)
+			if(local_addr < 0 || local_addr >= hp - heap)
 			{
 				return SP_ERROR_INVALID_ADDRESS;
 			}
 
-			delete [] allocations.back();
-			allocations.pop_back();
+			char *phys_addr = heap + local_addr;
+			cell_t *size = (cell_t*)phys_addr - 1;
+			if(*size != hp - phys_addr)
+			{
+				return SP_ERROR_INVALID_ADDRESS;
+			}
+
+			hp = hp - (*size + 1) * sizeof(cell_t);
 
 			return SP_ERROR_NONE;
 		}
 
 		int PluginContext::HeapRelease(cell_t local_addr)
 		{
-			if(allocations.empty() || local_addr < 0 || local_addr >= allocations.size())
+			if(local_addr < 0 || local_addr >= hp - heap)
 			{
 				return SP_ERROR_INVALID_ADDRESS;
 			}
 
-			for(auto i = allocations.begin(); i != allocations.end(); i++)
-			{
-				delete [] *i;
-			}
+			char *phys_addr = heap + local_addr;
+			cell_t *size = (cell_t*)phys_addr - 1;
 
-			allocations.erase(allocations.begin() + local_addr, allocations.end());
+			hp = hp - (*size + 1) * sizeof(cell_t);
 
 			return SP_ERROR_NONE;
+		}
+
+		void PluginContext::CheckHeapSize(unsigned int cells)
+		{
+			unsigned memUsed = hp - heap;
+			while(cells * sizeof(cell_t) > heapSize - memUsed)
+			{
+				unsigned int newHeapSize = heapSize * 2;
+				char *newHeap = new char[newHeapSize];
+
+				// Possibly change to cellsUsed.
+				memcpy(newHeap, heap, heapSize);
+
+				delete [] heap;
+				heap = newHeap;
+				hp = newHeap + memUsed;
+				heapSize = newHeapSize;
+			}
 		}
 		
 		// Why the hell are these not only in the IPluginRuntime if you can just get the runtime with GetRuntime...

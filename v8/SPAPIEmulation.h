@@ -101,14 +101,14 @@ namespace SMV8
 			virtual unsigned char *GetCodeHash();
 			virtual unsigned char *GetDataHash();
 		protected:
-			Handle<ObjectTemplate> GenerateGlobalObject();
-			Handle<ObjectTemplate> GenerateNativesObject();
-			Handle<ObjectTemplate> GeneratePluginObject();
+			virtual Handle<ObjectTemplate> GenerateGlobalObject();
+			virtual Handle<ObjectTemplate> GenerateNativesObject();
+			virtual Handle<ObjectTemplate> GeneratePluginObject();
 			static void DeclareNative(const FunctionCallbackInfo<Value>& info);
-			void InsertNativeParams(NativeData& nd, Handle<Array> signature);
-			NativeParamInfo CreateNativeParamInfo(Handle<Object> paramInfo);
-			void ExtractPluginInfo();
-			void LoadEmulatedString(const std::string& realstr, cell_t& local_addr_target);
+			virtual void InsertNativeParams(NativeData& nd, Handle<Array> signature);
+			virtual NativeParamInfo CreateNativeParamInfo(Handle<Object> paramInfo);
+			virtual void ExtractPluginInfo();
+			virtual void LoadEmulatedString(const std::string& realstr, cell_t& local_addr_target);
 		private:
 			std::vector<NativeData> natives;
 			std::vector<sp_public_t> publics;
@@ -181,12 +181,15 @@ namespace SMV8
 			virtual void SetKey(int k, void *value);
 			virtual bool GetKey(int k, void **value);
 			virtual void ClearLastNativeError();
+			virtual void CheckHeapSize(unsigned int cells);
 		private:
 			PluginRuntime *parentRuntime;
 			int32_t nativeError;
 			void *keys[4]; // <-- What... the... crap...
 			bool keys_set[4]; // <-- What... the... crap...
-			std::vector<cell_t*> allocations;
+			char* heap;
+			char* hp;
+			unsigned int heapSize;
 			bool inExec;
 			std::string errMessage;
 		};
