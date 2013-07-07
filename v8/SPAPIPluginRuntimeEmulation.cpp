@@ -267,10 +267,16 @@ namespace SMV8
 
 		IPluginFunction *PluginRuntime::GetFunctionByName(const char *public_name)
 		{
+			uint32_t idx;
+			if(FindPublicByName(public_name, &idx) != SP_ERROR_NONE)
+				return NULL;
+
+			return NULL;
 		}
 
 		IPluginFunction *PluginRuntime::GetFunctionById(funcid_t func_id)
 		{
+			return NULL;
 		}
 
 		IPluginContext *PluginRuntime::GetDefaultContext()

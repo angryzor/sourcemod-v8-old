@@ -46,6 +46,7 @@ namespace SMV8
 		class PluginFunction : public IPluginFunction
 		{
 		public:
+			PluginFunction(PluginRuntime& ctx, funcid_t id);
 			virtual int Execute(cell_t *result);
 			virtual int CallFunction(const cell_t *params, unsigned int num_params, cell_t *result);
 			virtual IPluginContext *GetParentContext();
@@ -57,6 +58,9 @@ namespace SMV8
 				unsigned int num_params, 
 				cell_t *result);
 			virtual IPluginRuntime *GetParentRuntime();
+		private:
+			PluginRuntime& runtime;
+			funcid_t id;
 		};
 
 		class PluginDebugInfo : public IPluginDebugInfo
