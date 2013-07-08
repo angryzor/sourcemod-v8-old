@@ -86,22 +86,18 @@ namespace SMV8
 			PluginRuntime* self = (PluginRuntime*)info.Data().As<External>()->Value();
 			HandleScope(self->isolate);
 
-			if(info.Length() < 1)
+			if(info.Length() < 2)
 				ThrowException(String::New("Invalid argument count"));
-
-			Handle<String> nativeName = info[0].As<String>();
-			//Handle<Array> signature = info[1].As<Array>();
-			String::AsciiValue nativeNameAscii(nativeName);
 
 			NativeData nd;
 			nd.runtime = self;
-			nd.name = *nativeNameAscii;
-			//self->InsertNativeParams(nd, signature);
+			nd.name = *String::AsciiValue(info[0].As<String>());
 			nd.state.flags = 0;
 			nd.state.pfn = InvalidV8Native;
 			nd.state.status = SP_NATIVE_UNBOUND;
 			nd.state.name = nd.name.c_str();
 			nd.state.user = reinterpret_cast<void *>(self->natives.size());
+			nd.resultType = (CellType)info[1].As<Integer>()->Value();
 			self->natives.push_back(nd);
 
 			self->RegisterNativeInNativesObject(nd);
@@ -112,7 +108,7 @@ namespace SMV8
 			HandleScope handle_scope(isolate);
 			Handle<Object> oNatives = Handle<Object>::New(isolate,nativesObj);
 			Handle<External> ndata = External::New(&native);
-			oNatives->Set(String::New(native.name.c_str()), FunctionTemplate::New(NativeRouter,ndata));
+			oNatives->Set(String::New(native.name.c_str()), FunctionTemplate::New(NativeRouter,ndata)->GetFunction());
 		}
 
 		void PluginRuntime::NativeRouter(const FunctionCallbackInfo<Value>& info)
@@ -124,11 +120,11 @@ namespace SMV8
 			}
 */
 
-			V8ToSPMarshaller marshaller(*nd);
+			V8ToSPMarshaller marshaller(*nd->runtime->isolate, *nd);
 			marshaller.HandleNativeCall(info);
 		}
 
-		void PluginRuntime::InsertNativeParams(NativeData& nd, Handle<Array> signature)
+/*		void PluginRuntime::InsertNativeParams(NativeData& nd, Handle<Array> signature)
 		{
 			HandleScope(isolate);
 
@@ -142,13 +138,13 @@ namespace SMV8
 		NativeParamInfo PluginRuntime::CreateNativeParamInfo(Handle<Object> paramInfo)
 		{
 			Handle<String> name = paramInfo->Get(String::New("name")).As<String>();
-			Handle<Int32> type = paramInfo->Get(String::New("type")).As<Int32>();
+			Handle<Integer> type = paramInfo->Get(String::New("type")).As<Integer>();
 
 			String::AsciiValue nameAscii(name);
 
-			return NativeParamInfo(*nameAscii, (NativeParamType)type->Value());
+			return NativeParamInfo(*nameAscii, (CellType)type->Value());
 		}
-
+*/
 		Handle<ObjectTemplate> PluginRuntime::GeneratePluginObject()
 		{
 			HandleScope handle_scope(isolate);

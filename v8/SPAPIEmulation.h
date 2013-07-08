@@ -16,12 +16,6 @@ namespace SMV8
 		enum CellType
 		{
 			INT,
-			FLOAT
-		};
-
-		enum NativeParamType
-		{
-			INT,
 			FLOAT,
 			INTBYREF,
 			FLOATBYREF,
@@ -35,10 +29,10 @@ namespace SMV8
 
 		struct NativeParamInfo
 		{
-			NativeParamInfo(std::string name, NativeParamType type) : name(name), type(type)
+			NativeParamInfo(std::string name, CellType type) : name(name), type(type)
 			{}
 			std::string name;
-			NativeParamType type;
+			CellType type;
 		};
 
 		struct NativeData
@@ -47,6 +41,7 @@ namespace SMV8
 			std::vector<NativeParamInfo> params;
 			sp_native_t state;
 			PluginRuntime* runtime;
+			CellType resultType;
 		};
 
 		struct PubvarData
@@ -196,8 +191,8 @@ namespace SMV8
 			virtual Handle<ObjectTemplate> GenerateNativesObject();
 			virtual Handle<ObjectTemplate> GeneratePluginObject();
 			static void DeclareNative(const FunctionCallbackInfo<Value>& info);
-			virtual void InsertNativeParams(NativeData& nd, Handle<Array> signature);
-			virtual NativeParamInfo CreateNativeParamInfo(Handle<Object> paramInfo);
+//			virtual void InsertNativeParams(NativeData& nd, Handle<Array> signature);
+//			virtual NativeParamInfo CreateNativeParamInfo(Handle<Object> paramInfo);
 			virtual void ExtractPluginInfo();
 			virtual void LoadEmulatedString(const std::string& realstr, cell_t& local_addr_target);
 			virtual void RegisterNativeInNativesObject(NativeData& native);

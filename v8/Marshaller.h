@@ -14,6 +14,7 @@ namespace SMV8
 
 		struct ReferenceInfo
 		{
+			ReferenceInfo(CellType type, cell_t addr) : type(type), addr(addr) {}
 			CellType type;
 			cell_t addr;
 		};
@@ -21,22 +22,26 @@ namespace SMV8
 		class V8ToSPMarshaller
 		{
 		public:
-			V8ToSPMarshaller(NativeData& native);
+			V8ToSPMarshaller(Isolate& isolate, NativeData& native);
 			virtual ~V8ToSPMarshaller();
 			Handle<Value> HandleNativeCall(const FunctionCallbackInfo<Value>& info);
 		private:
 			void PushParam(Handle<Value> val, cell_t* param_dst);
-			void PushInt(Handle<Int32> val, cell_t* param_dst);
+			void PushInt(Handle<Integer> val, cell_t* param_dst);
 			void PushFloat(Handle<Number> val, cell_t* param_dst);
 			void PushByRef(Handle<Object> val, cell_t* param_dst);
 			void PushArray(Handle<Array> val, cell_t* param_dst);
 			void PushString(Handle<String> val, cell_t* param_dst);
-			void SetBaseAddr(cell_t addr);
+			Handle<Object> BuildResultObject(cell_t result);
+			Handle<Integer> PopIntRef();
+			Handle<Number> PopFloatRef();
+			Handle<String> PopString();
 		private:
 			PluginRuntime& runtime;
 			IPluginContext& ctx;
 			NativeData& native;
 			std::stack<ReferenceInfo> refs;
+			Isolate& isolate;
 		};
 	}
 }
