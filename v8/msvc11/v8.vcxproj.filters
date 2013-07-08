@@ -27,6 +27,9 @@
     <ClInclude Include="..\SPAPIEmulation.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\Marshaller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Plugin.cpp">
@@ -42,6 +45,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\SPAPIPluginRuntimeEmulation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SPAPIPluginFunctionEmulation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\V8ToSPMarshaller.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -37,7 +37,7 @@ namespace SMV8
 	{
 		HandleScope handle_scope(isolate);
 		Handle<Context> context = Handle<Context>::New(isolate,coffeeCompilerContext);
-		Handle<Object> coffeescript = context->Global()->Get(String::New("CoffeeScript"));
+		Handle<Object> coffeescript = context->Global()->Get(String::New("CoffeeScript")).As<Object>();
 
 		const int argc = 1;
 		Handle<Value> argv[argc] = { String::New(coffee.c_str()) };

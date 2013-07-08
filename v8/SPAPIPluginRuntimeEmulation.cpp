@@ -1,6 +1,8 @@
 #include "SPAPIEmulation.h"
 #include <IShareSys.h>
 #include <string>
+#include <sp_vm_function.h>
+#include "Marshaller.h"
 
 namespace SMV8
 {
@@ -55,7 +57,9 @@ namespace SMV8
 			HandleScope handle_scope(isolate);
 			Handle<ObjectTemplate> global(ObjectTemplate::New());
 			global->Set("natives",GenerateNativesObject()->NewInstance());
-			global->Set("plugin",GeneratePluginObject()->NewInstance());
+			Handle<Object> myNativesObj = GeneratePluginObject()->NewInstance();
+			nativesObj.Reset(isolate, myNativesObj);
+			global->Set("plugin",myNativesObj);
 			//global->Set("forwards",GenerateForwardsObject());
 			return handle_scope.Close(global);
 		}
@@ -82,29 +86,53 @@ namespace SMV8
 			PluginRuntime* self = (PluginRuntime*)info.Data().As<External>()->Value();
 			HandleScope(self->isolate);
 
-			if(info.Length() != 2)
+			if(info.Length() < 1)
 				ThrowException(String::New("Invalid argument count"));
 
 			Handle<String> nativeName = info[0].As<String>();
-			Handle<Array> signature = info[1].As<Array>();
+			//Handle<Array> signature = info[1].As<Array>();
 			String::AsciiValue nativeNameAscii(nativeName);
 
 			NativeData nd;
+			nd.runtime = self;
 			nd.name = *nativeNameAscii;
-			self->InsertNativeParams(nd, signature);
+			//self->InsertNativeParams(nd, signature);
 			nd.state.flags = 0;
 			nd.state.pfn = InvalidV8Native;
 			nd.state.status = SP_NATIVE_UNBOUND;
 			nd.state.name = nd.name.c_str();
 			nd.state.user = reinterpret_cast<void *>(self->natives.size());
 			self->natives.push_back(nd);
+
+			self->RegisterNativeInNativesObject(nd);
+		}
+
+		void PluginRuntime::RegisterNativeInNativesObject(NativeData& native)
+		{
+			HandleScope handle_scope(isolate);
+			Handle<Object> oNatives = Handle<Object>::New(isolate,nativesObj);
+			Handle<External> ndata = External::New(&native);
+			oNatives->Set(String::New(native.name.c_str()), FunctionTemplate::New(NativeRouter,ndata));
+		}
+
+		void PluginRuntime::NativeRouter(const FunctionCallbackInfo<Value>& info)
+		{
+			NativeData* nd = (NativeData*)info.Data().As<External>()->Value();
+/*			if(info.Length() < nd->params.size())
+			{
+				ThrowException(String::New("Not enough parameters for native."));
+			}
+*/
+
+			V8ToSPMarshaller marshaller(*nd);
+			marshaller.HandleNativeCall(info);
 		}
 
 		void PluginRuntime::InsertNativeParams(NativeData& nd, Handle<Array> signature)
 		{
 			HandleScope(isolate);
 
-			for(int i = 0; i < signature->Length(); i++)
+			for(unsigned int i = 0; i < signature->Length(); i++)
 			{
 				Handle<Object> paramInfo = signature->Get(i).As<Object>();
 				nd.params.push_back(CreateNativeParamInfo(paramInfo));
@@ -114,7 +142,7 @@ namespace SMV8
 		NativeParamInfo PluginRuntime::CreateNativeParamInfo(Handle<Object> paramInfo)
 		{
 			Handle<String> name = paramInfo->Get(String::New("name")).As<String>();
-			Handle<Integer> type = paramInfo->Get(String::New("type")).As<Integer>();
+			Handle<Int32> type = paramInfo->Get(String::New("type")).As<Int32>();
 
 			String::AsciiValue nameAscii(name);
 
@@ -131,7 +159,7 @@ namespace SMV8
 
 		IPluginDebugInfo *PluginRuntime::GetDebugInfo()
 		{
-
+			return NULL;
 		}
 
 		int PluginRuntime::FindNativeByName(const char *name, uint32_t *index)

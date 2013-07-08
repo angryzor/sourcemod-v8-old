@@ -1,7 +1,7 @@
 #ifndef _INCLUDE_V8_SPAPIEMULATION_H_
 #define _INCLUDE_V8_SPAPIEMULATION_H_
 
-#include <sourcepawn/sp_vm_api.h>
+#include <sp_vm_api.h>
 #include <vector>
 #include <cstdarg>
 #include <v8.h>
@@ -13,14 +13,25 @@ namespace SMV8
 		using namespace SourcePawn;
 		using namespace v8;
 
+		enum CellType
+		{
+			INT,
+			FLOAT
+		};
+
 		enum NativeParamType
 		{
-			INTEGER,
+			INT,
 			FLOAT,
+			INTBYREF,
+			FLOATBYREF,
+			ARRAY,
 			STRING,
-			REFERENCE,
 			VARARG
 		};
+
+		class PluginRuntime;
+		class PluginContext;
 
 		struct NativeParamInfo
 		{
@@ -35,6 +46,7 @@ namespace SMV8
 			std::string name;
 			std::vector<NativeParamInfo> params;
 			sp_native_t state;
+			PluginRuntime* runtime;
 		};
 
 		struct PubvarData
@@ -61,66 +73,6 @@ namespace SMV8
 		private:
 			PluginRuntime& runtime;
 			funcid_t id;
-		};
-
-		class PluginDebugInfo : public IPluginDebugInfo
-		{
-		public:
-			virtual int LookupFile(ucell_t addr, const char **filename);
-			virtual int LookupFunction(ucell_t addr, const char **name);
-			virtual int LookupLine(ucell_t addr, uint32_t *line);
-		};
-
-		class Compilation : public ICompilation
-		{
-		public:
-			virtual bool SetOption(const char *key, const char *val);
-			virtual void Abort();
-		};
-
-		class PluginRuntime : public IPluginRuntime
-		{
-		public:
-			PluginRuntime(Isolate* isolate, std::string code);
-			virtual ~PluginRuntime();
-			virtual IPluginDebugInfo *GetDebugInfo();
-			virtual int FindNativeByName(const char *name, uint32_t *index);
-			virtual int GetNativeByIndex(uint32_t index, sp_native_t **native);
-			virtual uint32_t GetNativesNum();
-			virtual int FindPublicByName(const char *name, uint32_t *index);
-			virtual int GetPublicByIndex(uint32_t index, sp_public_t **publicptr);
-			virtual uint32_t GetPublicsNum();
-			virtual int GetPubvarByIndex(uint32_t index, sp_pubvar_t **pubvar);
-			virtual int FindPubvarByName(const char *name, uint32_t *index);
-			virtual int GetPubvarAddrs(uint32_t index, cell_t *local_addr, cell_t **phys_addr);
-			virtual uint32_t GetPubVarsNum();
-			virtual IPluginFunction *GetFunctionByName(const char *public_name);
-			virtual IPluginFunction *GetFunctionById(funcid_t func_id);
-			virtual IPluginContext *GetDefaultContext();
-			virtual bool IsDebugging();
-			virtual int ApplyCompilationOptions(ICompilation *co);
-			virtual void SetPauseState(bool paused);
-			virtual bool IsPaused();
-			virtual size_t GetMemUsage();
-			virtual unsigned char *GetCodeHash();
-			virtual unsigned char *GetDataHash();
-		protected:
-			virtual Handle<ObjectTemplate> GenerateGlobalObject();
-			virtual Handle<ObjectTemplate> GenerateNativesObject();
-			virtual Handle<ObjectTemplate> GeneratePluginObject();
-			static void DeclareNative(const FunctionCallbackInfo<Value>& info);
-			virtual void InsertNativeParams(NativeData& nd, Handle<Array> signature);
-			virtual NativeParamInfo CreateNativeParamInfo(Handle<Object> paramInfo);
-			virtual void ExtractPluginInfo();
-			virtual void LoadEmulatedString(const std::string& realstr, cell_t& local_addr_target);
-		private:
-			std::vector<NativeData> natives;
-			std::vector<sp_public_t> publics;
-			std::vector<PubvarData> pubvars;
-			bool pauseState;
-			Isolate* isolate;
-			Persistent<Context> v8Context;
-			PluginContext ctx;
 		};
 
 		/* Bridges between the SPAPI and V8 implementation by holding an internal stack only used during 
@@ -197,6 +149,70 @@ namespace SMV8
 			bool inExec;
 			std::string errMessage;
 		};
+
+		class PluginDebugInfo : public IPluginDebugInfo
+		{
+		public:
+			virtual int LookupFile(ucell_t addr, const char **filename);
+			virtual int LookupFunction(ucell_t addr, const char **name);
+			virtual int LookupLine(ucell_t addr, uint32_t *line);
+		};
+
+		class Compilation : public ICompilation
+		{
+		public:
+			virtual bool SetOption(const char *key, const char *val);
+			virtual void Abort();
+		};
+
+		class PluginRuntime : public IPluginRuntime
+		{
+		public:
+			PluginRuntime(Isolate* isolate, std::string code);
+			virtual ~PluginRuntime();
+			virtual IPluginDebugInfo *GetDebugInfo();
+			virtual int FindNativeByName(const char *name, uint32_t *index);
+			virtual int GetNativeByIndex(uint32_t index, sp_native_t **native);
+			virtual uint32_t GetNativesNum();
+			virtual int FindPublicByName(const char *name, uint32_t *index);
+			virtual int GetPublicByIndex(uint32_t index, sp_public_t **publicptr);
+			virtual uint32_t GetPublicsNum();
+			virtual int GetPubvarByIndex(uint32_t index, sp_pubvar_t **pubvar);
+			virtual int FindPubvarByName(const char *name, uint32_t *index);
+			virtual int GetPubvarAddrs(uint32_t index, cell_t *local_addr, cell_t **phys_addr);
+			virtual uint32_t GetPubVarsNum();
+			virtual IPluginFunction *GetFunctionByName(const char *public_name);
+			virtual IPluginFunction *GetFunctionById(funcid_t func_id);
+			virtual IPluginContext *GetDefaultContext();
+			virtual bool IsDebugging();
+			virtual int ApplyCompilationOptions(ICompilation *co);
+			virtual void SetPauseState(bool paused);
+			virtual bool IsPaused();
+			virtual size_t GetMemUsage();
+			virtual unsigned char *GetCodeHash();
+			virtual unsigned char *GetDataHash();
+		protected:
+			virtual Handle<ObjectTemplate> GenerateGlobalObject();
+			virtual Handle<ObjectTemplate> GenerateNativesObject();
+			virtual Handle<ObjectTemplate> GeneratePluginObject();
+			static void DeclareNative(const FunctionCallbackInfo<Value>& info);
+			virtual void InsertNativeParams(NativeData& nd, Handle<Array> signature);
+			virtual NativeParamInfo CreateNativeParamInfo(Handle<Object> paramInfo);
+			virtual void ExtractPluginInfo();
+			virtual void LoadEmulatedString(const std::string& realstr, cell_t& local_addr_target);
+			virtual void RegisterNativeInNativesObject(NativeData& native);
+			static void NativeRouter(const FunctionCallbackInfo<Value>& info);
+		private:
+			std::vector<NativeData> natives;
+			std::vector<sp_public_t> publics;
+			std::vector<PubvarData> pubvars;
+			bool pauseState;
+			Isolate* isolate;
+			Persistent<Context> v8Context;
+			PluginContext ctx;
+			Persistent<Object> nativesObj;
+		};
+
 
 		class ContextTrace : public IContextTrace
 		{

@@ -5,7 +5,7 @@
 
 #include "PluginInfo.h"
 #include <ISourceMod.h>
-#include <sourcepawn/sp_vm_api.h>
+#include <sp_vm_api.h>
 #include <string>
 
 namespace SMV8
@@ -17,9 +17,9 @@ namespace SMV8
 	{
 	public:
 		Manager(ISourceMod *sm);
-		void LoadCoffeeCompiler();
-		SourcePawn::IPluginRuntime *LoadPlugin(std::string location);
-		std::string CompileCoffee(const std::string& coffee);
+		virtual void LoadCoffeeCompiler();
+		virtual SourcePawn::IPluginRuntime *LoadPlugin(std::string location);
+		virtual std::string CompileCoffee(const std::string& coffee);
 		virtual ~Manager(void);
 	private:
 		Handle<Object> BuildGlobalObject(PluginInfo& pi) const;

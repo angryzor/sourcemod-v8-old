@@ -165,14 +165,14 @@ namespace SMV8
 
 		int PluginContext::LocalToPhysAddr(cell_t local_addr, cell_t **phys_addr)
 		{
-			if(allocations.empty() || local_addr < 0 || local_addr >= allocations.size())
+			if(local_addr < 0 || local_addr >= hp - heap)
 			{
 				return SP_ERROR_INVALID_ADDRESS;
 			}
 
 			if(phys_addr)
 			{
-				*phys_addr = allocations[local_addr];
+				*phys_addr = (cell_t *)(heap + local_addr);
 			}
 
 			return SP_ERROR_NONE;
@@ -180,12 +180,12 @@ namespace SMV8
 
 		int PluginContext::LocalToString(cell_t local_addr, char **addr)
 		{
-			if(allocations.empty() || local_addr < 0 || local_addr >= allocations.size())
+			if(local_addr < 0 || local_addr >= hp - heap)
 			{
 				return SP_ERROR_INVALID_ADDRESS;
 			}
 
-			*addr = (char *)allocations[local_addr];
+			*addr = heap + local_addr;
 
 			return SP_ERROR_NONE;
 		}
@@ -353,6 +353,8 @@ namespace SMV8
 			{
 				errMessage = msg;
 			}
+
+			return SP_ERROR_NONE;
 		}
 
 		cell_t PluginContext::ThrowNativeError(const char *msg, va_list args)
@@ -382,7 +384,7 @@ namespace SMV8
 		int PluginContext::LocalToStringNULL(cell_t local_addr, char **addr)
 		{
 			// NULL has already been resolved by the marshalling system.
-			LocalToString(local_addr,addr);
+			return LocalToString(local_addr,addr);
 		}
 
 		int PluginContext::BindNativeToIndex(uint32_t index, SPVM_NATIVE_FUNC native)
@@ -411,6 +413,7 @@ namespace SMV8
 
 
 			inExec = savedInExec;
+			return SP_ERROR_NONE;
 		}
 
 		int PluginContext::GetLastNativeError()
@@ -421,6 +424,7 @@ namespace SMV8
 		cell_t *PluginContext::GetLocalParams()
 		{
 			// TODO: Implement this ugly hack
+			return NULL;
 		}
 
 		void PluginContext::SetKey(int k, void *value)

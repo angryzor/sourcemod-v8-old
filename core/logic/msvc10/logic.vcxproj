@@ -155,8 +155,6 @@
     <ClCompile Include="..\thread\BaseWorker.cpp" />
     <ClCompile Include="..\thread\ThreadWorker.cpp" />
     <ClCompile Include="..\thread\WinThreads.cpp" />
-    <ClCompile Include="PluginSysV8.cpp" />
-    <ClCompile Include="PluginSysWrapper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\public\sm_platform.h" />
@@ -186,8 +184,6 @@
     <ClInclude Include="..\thread\ThreadWorker.h" />
     <ClInclude Include="..\thread\WinThreads.h" />
     <ClInclude Include="..\Translator.h" />
-    <ClInclude Include="PluginSysV8.h" />
-    <ClInclude Include="PluginSysWrapper.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

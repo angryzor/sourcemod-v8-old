@@ -41,7 +41,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(V8_HOME)\include;$(SolutionDir)..\public;$(IncludePath)</IncludePath>
+    <IncludePath>$(V8_HOME)\include;$(SolutionDir)..\public;$(SolutionDir)..\public\sourcepawn;$(SolutionDir)..\sourcepawn\jit;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -80,6 +80,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\Marshaller.h" />
     <ClInclude Include="..\Plugin.h" />
     <ClInclude Include="..\PluginInfo.h" />
     <ClInclude Include="..\SPAPIEmulation.h" />
@@ -88,9 +89,11 @@
   <ItemGroup>
     <ClCompile Include="..\Plugin.cpp" />
     <ClCompile Include="..\PluginInfo.cpp" />
+    <ClCompile Include="..\SPAPIPluginFunctionEmulation.cpp" />
     <ClCompile Include="..\SPAPIPluginContextEmulation.cpp" />
     <ClCompile Include="..\SPAPIPluginRuntimeEmulation.cpp" />
     <ClCompile Include="..\V8Manager.cpp" />
+    <ClCompile Include="..\V8ToSPMarshaller.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />

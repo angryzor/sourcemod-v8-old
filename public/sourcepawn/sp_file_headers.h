@@ -50,8 +50,8 @@
 	typedef __int32				int32_t;		/**< 32bit signed integer */
 	typedef unsigned __int16	uint16_t;		/**< 16bit unsigned integer */
 	typedef __int16				int16_t;		/**< 16bit signed integer */
-	typedef unsigned __int8		uint8_t;		/**< 8bit unsigned integer */
-	typedef __int8				int8_t;			/**< 8bit signed integer */
+	typedef unsigned char		uint8_t;		/**< 8bit unsigned integer */
+	typedef signed char			int8_t;			/**< 8bit signed integer */
  #define HAVE_STDINT_H
  #endif
 #endif

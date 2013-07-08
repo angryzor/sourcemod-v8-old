@@ -42,6 +42,7 @@
 #include "GameConfigs.h"
 #include "common_logic.h"
 #include "Translator.h"
+#include <string>
 
 CPluginManager g_PluginSys;
 HandleType_t g_PluginType = 0;
@@ -886,6 +887,15 @@ void CPluginManager::LoadPluginsFromDir(const char *basedir, const char *localpa
 	libsys->CloseDirectory(dir);
 }
 
+// TODO: Make better. Reason for not a method: would alter CPluginManager interface, which some extensions depend on
+static bool IsV8Plugin(CPlugin* plugin)
+{
+	std::string filename(plugin->GetFilename());
+	
+	return 	filename.find_last_of(".js") == filename.size() - 3
+		||	filename.find_last_of(".js.coffee") == filename.size() - 10;
+}
+
 LoadRes CPluginManager::_LoadPlugin(CPlugin **_plugin, const char *path, bool debug, PluginType type, char error[], size_t maxlength)
 {
 	if (m_LoadingLocked)
@@ -925,43 +935,53 @@ LoadRes CPluginManager::_LoadPlugin(CPlugin **_plugin, const char *path, bool de
 
 	pPlugin->m_type = PluginType_MapUpdated;
 
-	ICompilation *co = NULL;
-
-	if (pPlugin->m_status == Plugin_Uncompiled)
-	{
-		co = g_pSourcePawn2->StartCompilation();
-	}
-
-	/* Do the actual compiling */
-	if (co != NULL)
+	if(IsV8Plugin(pPlugin))
 	{
 		char fullpath[PLATFORM_MAX_PATH];
 		g_pSM->BuildPath(Path_SM, fullpath, sizeof(fullpath), "plugins/%s", pPlugin->m_filename);
 
-		pPlugin->m_pRuntime = g_pSourcePawn2->LoadPlugin(co, fullpath, &err);
-		if (pPlugin->m_pRuntime == NULL)
+		pPlugin->m_pRuntime = g_pV8->LoadPlugin(fullpath);
+	}
+	else
+	{
+		ICompilation *co = NULL;
+
+		if (pPlugin->m_status == Plugin_Uncompiled)
 		{
-			if (error)
-			{
-				smcore.Format(error, 
-					maxlength, 
-					"Unable to load plugin (error %d: %s)", 
-					err, 
-					g_pSourcePawn2->GetErrorString(err));
-			}
-			pPlugin->m_status = Plugin_BadLoad;
+			co = g_pSourcePawn2->StartCompilation();
 		}
-		else
+
+		/* Do the actual compiling */
+		if (co != NULL)
 		{
-			if (pPlugin->UpdateInfo())
-			{
-				pPlugin->m_status = Plugin_Created;
-			}
-			else
+			char fullpath[PLATFORM_MAX_PATH];
+			g_pSM->BuildPath(Path_SM, fullpath, sizeof(fullpath), "plugins/%s", pPlugin->m_filename);
+
+			pPlugin->m_pRuntime = g_pSourcePawn2->LoadPlugin(co, fullpath, &err);
+			if (pPlugin->m_pRuntime == NULL)
 			{
 				if (error)
 				{
-					smcore.Format(error, maxlength, "%s", pPlugin->m_errormsg);
+					smcore.Format(error, 
+						maxlength, 
+						"Unable to load plugin (error %d: %s)", 
+						err, 
+						g_pSourcePawn2->GetErrorString(err));
+				}
+				pPlugin->m_status = Plugin_BadLoad;
+			}
+			else
+			{
+				if (pPlugin->UpdateInfo())
+				{
+					pPlugin->m_status = Plugin_Created;
+				}
+				else
+				{
+					if (error)
+					{
+						smcore.Format(error, maxlength, "%s", pPlugin->m_errormsg);
+					}
 				}
 			}
 		}
