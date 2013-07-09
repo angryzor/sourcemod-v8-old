@@ -64,8 +64,8 @@ CTakeDamageInfoHack::CTakeDamageInfoHack( CBaseEntity *pInflictor, CBaseEntity *
 
 #if SOURCE_ENGINE == SE_ORANGEBOXVALVE || SOURCE_ENGINE == SE_CSS
 	m_iDamagedOtherPlayers = 0;
-	m_iPlayerPenetrateCount = 0;
-	m_flUnknown = 0.0f;
+	m_iPlayerPenetrationCount = 0;
+	m_flDamageBonus = 0.0f;
 #endif
 
 #if SOURCE_ENGINE >= SE_ALIENSWARM
