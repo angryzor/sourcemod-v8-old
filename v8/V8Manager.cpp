@@ -33,7 +33,7 @@ namespace SMV8
 		coffeeCompiler->Run();
 	}
 
-	std::string Manager::CompileCoffee(const std::string& coffee)
+	std::string Manager::CompileCoffee(const std::string& coffee) const
 	{
 		HandleScope handle_scope(isolate);
 		Handle<Context> context = Handle<Context>::New(isolate,coffeeCompilerContext);

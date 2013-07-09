@@ -84,15 +84,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\Marshaller.h" />
-    <ClInclude Include="..\Plugin.h" />
-    <ClInclude Include="..\PluginInfo.h" />
-    <ClInclude Include="..\SPAPIEmulation.h" />
-    <ClInclude Include="..\V8Manager.h" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="..\Plugin.cpp" />
-    <ClCompile Include="..\PluginInfo.cpp" />
     <ClCompile Include="..\SPAPIPluginFunctionEmulation.cpp" />
     <ClCompile Include="..\SPAPIPluginContextEmulation.cpp" />
     <ClCompile Include="..\SPAPIPluginRuntimeEmulation.cpp" />
@@ -101,6 +93,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\public\v8\Marshaller.h" />
+    <ClInclude Include="..\..\public\v8\Plugin.h" />
+    <ClInclude Include="..\..\public\v8\SPAPIEmulation.h" />
+    <ClInclude Include="..\..\public\v8\V8Manager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -196,6 +196,7 @@ public:
 extern ISourcePawnEngine *g_pSourcePawn;
 extern ISourcePawnEngine2 *g_pSourcePawn2;
 extern IdentityToken_t *g_pCoreIdent;
+extern SMV8::Manager *g_V8;
 
 namespace SourceMod
 {
