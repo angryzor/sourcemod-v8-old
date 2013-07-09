@@ -49,7 +49,10 @@
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">sourcemod.logic</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>G:\Users\Ruben Tytgat\Documents\Programmeerprojecten\v8\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(V8_HOME)\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <IncludePath>$(V8_HOME)\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

@@ -42,12 +42,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <IncludePath>$(V8_HOME)\include;$(SolutionDir)..\public;$(SolutionDir)..\public\v8;$(SolutionDir)..\public\sourcepawn;$(SolutionDir)..\sourcepawn\jit;$(IncludePath)</IncludePath>
-    <LibraryPath>$(V8_HOME)\build\Debug\lib;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(V8_HOME)\build\$(Configuration)\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>G:\Users\Ruben Tytgat\Documents\Programmeerprojecten\v8\include;$(SolutionDir)public;$(IncludePath)</IncludePath>
-    <LibraryPath>$(V8_HOME)\build\Release\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(V8_HOME)\include;$(SolutionDir)..\public;$(SolutionDir)..\public\v8;$(SolutionDir)..\public\sourcepawn;$(SolutionDir)..\sourcepawn\jit;$(IncludePath)</IncludePath>
+    <LibraryPath>$(V8_HOME)\build\$(Configuration)\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
