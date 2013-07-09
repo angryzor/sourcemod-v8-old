@@ -11,12 +11,15 @@ namespace SMV8
 	using namespace v8;
 	using namespace SourceMod;
 
-	Manager::Manager() : isolate(Isolate::GetCurrent()), coffeeCompilerContext(isolate, Context::New(isolate))
+	Manager::Manager()
 	{
 	}
 
 	void Manager::Initialize(ISourceMod *sm)
 	{
+		isolate = Isolate::GetCurrent();
+		HandleScope handle_scope(isolate);
+		coffeeCompilerContext.Reset(isolate, Context::New(isolate));
 		LoadCoffeeCompiler(sm);
 	}
 
@@ -33,6 +36,9 @@ namespace SMV8
 
 		ostringstream oss;
 		oss << ifs.rdbuf();
+
+		Handle<Context> context = Handle<Context>::New(isolate, coffeeCompilerContext);
+		Context::Scope context_scope(context);
 
 		Handle<Script> coffeeCompiler = Script::Compile(String::New(oss.str().c_str()));
 		coffeeCompiler->Run();
@@ -63,7 +69,7 @@ namespace SMV8
 
 		std::string code(oss.str());
 
-		if(location.find_last_of(".js.coffee") == location.size() - 10)
+		if(location.find(".coffee", location.size() - 7) != string::npos)
 			code = CompileCoffee(code);
 
 		return new SPEmulation::PluginRuntime(isolate, code);

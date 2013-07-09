@@ -50,6 +50,8 @@ namespace SMV8
 
 		void V8ToSPMarshaller::PushByRef(Handle<Object> val, cell_t* param_dst)
 		{
+			HandleScope handle_scope(&isolate);
+
 			cell_t dst_local;
 			cell_t* dst_phys;
 			ctx.HeapAlloc(1, &dst_local, &dst_phys);
@@ -100,6 +102,8 @@ namespace SMV8
 
 		Handle<Object> V8ToSPMarshaller::BuildResultObject(cell_t result)
 		{
+			HandleScope handle_scope(&isolate);
+
 			Handle<ObjectTemplate> resObj = ObjectTemplate::New();
 			resObj->Set("result", native.resultType == FLOAT ?
 			                      Number::New(sp_ctof(result)) :

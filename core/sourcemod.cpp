@@ -53,6 +53,7 @@ SH_DECL_HOOK1_void(IVEngineServer, ServerCommand, SH_NOATTRIB, false, const char
 SourceModBase g_SourceMod;
 
 ILibrary *g_pJIT = NULL;
+ILibrary *g_pV8Lib = NULL;
 SourceHook::String g_BaseDir;
 ISourcePawnEngine *g_pSourcePawn = NULL;
 ISourcePawnEngine2 *g_pSourcePawn2 = NULL;
@@ -239,14 +240,15 @@ bool SourceModBase::InitializeSourceMod(char *error, size_t maxlength, bool late
 		return false;
 	}
 
+
 	// Attempt to load V8
 	g_SMAPI->PathFormat(file, sizeof(file), "%s/bin/v8.%s",
 		GetSourceModPath(),
 		PLATFORM_LIB_EXT
 		);
 
-	g_pJIT = g_LibSys.OpenLibrary(file, myerror, sizeof(myerror));
-	if (!g_pJIT)
+	g_pV8Lib = g_LibSys.OpenLibrary(file, myerror, sizeof(myerror));
+	if (!g_pV8Lib)
 	{
 		if (error && maxlength)
 		{
@@ -257,14 +259,13 @@ bool SourceModBase::InitializeSourceMod(char *error, size_t maxlength, bool late
 		return false;
 	}
 
-	GET_V8 getv8 = (GET_V8)g_pJIT->GetSymbolAddress("GetV8Manager");
+	GET_V8 getv8 = (GET_V8)g_pV8Lib->GetSymbolAddress("GetV8Manager");
 	if (getv8 == NULL)
 	{
 		if (error && maxlength)
 		{
 			snprintf(error, maxlength, "V8 is too old; upgrade SourceMod");
 		}
-		ShutdownJIT();
 		return false;
 	}
 
