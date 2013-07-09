@@ -75,6 +75,7 @@ namespace SMV8
 		class PluginContext : public IPluginContext
 		{
 		public:
+			PluginContext(PluginRuntime* parentRuntime);
 			virtual ~PluginContext();
 		public:
 			virtual IVirtualMachine *GetVirtualMachine();
@@ -187,9 +188,10 @@ namespace SMV8
 			virtual unsigned char *GetCodeHash();
 			virtual unsigned char *GetDataHash();
 		protected:
-			virtual Handle<ObjectTemplate> GenerateGlobalObject();
-			virtual Handle<ObjectTemplate> GenerateNativesObject();
-			virtual Handle<ObjectTemplate> GeneratePluginObject();
+			virtual Handle<ObjectTemplate> GenerateGlobalObjectTemplate();
+			virtual Handle<ObjectTemplate> GenerateNativesObjectTemplate();
+			virtual Handle<ObjectTemplate> GeneratePluginObjectTemplate();
+			virtual Handle<ObjectTemplate> GeneratePluginInfoObjectTemplate();
 			static void DeclareNative(const FunctionCallbackInfo<Value>& info);
 //			virtual void InsertNativeParams(NativeData& nd, Handle<Array> signature);
 //			virtual NativeParamInfo CreateNativeParamInfo(Handle<Object> paramInfo);

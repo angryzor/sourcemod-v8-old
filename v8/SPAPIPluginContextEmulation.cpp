@@ -4,9 +4,17 @@ namespace SMV8
 {
 	namespace SPEmulation
 	{
+		PluginContext::PluginContext(PluginRuntime* parentRuntime)
+			: parentRuntime(parentRuntime)
+		{
+			heap = new char[4096];
+			hp = heap;
+		}
+
 		PluginContext::~PluginContext()
 		{
 			HeapRelease(0);
+			delete [] heap;
 		}
 
 		IVirtualMachine *PluginContext::GetVirtualMachine()
@@ -195,7 +203,7 @@ namespace SMV8
 			char *dest;
 			int err;
 
-			if(!(err = LocalToString(local_addr, &dest)))
+			if((err = LocalToString(local_addr, &dest)) != SP_ERROR_NONE)
 				return err;
 
 			size_t len = strlen(source);
@@ -257,7 +265,7 @@ namespace SMV8
 			bool needtocheck;
 			int err;
 
-			if(!(err = LocalToString(local_addr, &dest)))
+			if((err = LocalToString(local_addr, &dest)) != SP_ERROR_NONE)
 				return err;
 
 			size_t len = strlen(source);

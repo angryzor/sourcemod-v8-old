@@ -30,17 +30,21 @@ namespace SMV8
 		};
 
 		PluginRuntime::PluginRuntime(Isolate* isolate, std::string code)
-			: pauseState(false), isolate(isolate)
+			: pauseState(false), isolate(isolate), ctx(this)
 		{
 			HandleScope handle_scope(isolate);
 
 			// Create a new context for this plugin, store it in a persistent handle.
-			Handle<Context> ourContext = Context::New(isolate, NULL, GenerateGlobalObject());
+			Handle<Context> ourContext = Context::New(isolate, NULL, GenerateGlobalObjectTemplate());
 			v8Context.Reset(isolate, ourContext);
+
+			Context::Scope context_scope(ourContext);
 
 			Handle<Script> script = Script::Compile(String::New(code.c_str()));
 			script->Run();
 
+			nativesObj.Reset(isolate, ourContext->Global()->Get(String::New("plugin")).As<Object>());
+				
 			ExtractPluginInfo();
 		}
 
@@ -52,14 +56,12 @@ namespace SMV8
 		/**
 		 * Generate the global object
 		 */
-		Handle<ObjectTemplate> PluginRuntime::GenerateGlobalObject()
+		Handle<ObjectTemplate> PluginRuntime::GenerateGlobalObjectTemplate()
 		{
 			HandleScope handle_scope(isolate);
 			Handle<ObjectTemplate> global(ObjectTemplate::New());
-			global->Set("natives",GenerateNativesObject()->NewInstance());
-			Handle<Object> myNativesObj = GeneratePluginObject()->NewInstance();
-			nativesObj.Reset(isolate, myNativesObj);
-			global->Set("plugin",myNativesObj);
+			global->Set("natives",GenerateNativesObjectTemplate());
+			global->Set("plugin",GeneratePluginObjectTemplate());
 			//global->Set("forwards",GenerateForwardsObject());
 			return handle_scope.Close(global);
 		}
@@ -67,7 +69,7 @@ namespace SMV8
 		/**
 		 * Generate the natives object
 		 */
-		Handle<ObjectTemplate> PluginRuntime::GenerateNativesObject()
+		Handle<ObjectTemplate> PluginRuntime::GenerateNativesObjectTemplate()
 		{
 			HandleScope handle_scope(isolate);
 			Handle<ObjectTemplate> natives(ObjectTemplate::New());
@@ -75,6 +77,27 @@ namespace SMV8
 			natives->Set("declare", FunctionTemplate::New(DeclareNative,self));
 			return handle_scope.Close(natives);
 		}
+
+		Handle<ObjectTemplate> PluginRuntime::GeneratePluginObjectTemplate()
+		{
+			HandleScope handle_scope(isolate);
+			Handle<ObjectTemplate> plugin = ObjectTemplate::New();
+			plugin->Set("info", GeneratePluginInfoObjectTemplate());
+			return handle_scope.Close(plugin);
+		}
+
+		Handle<ObjectTemplate> PluginRuntime::GeneratePluginInfoObjectTemplate()
+		{
+			HandleScope handle_scope(isolate);
+			Handle<ObjectTemplate> info = ObjectTemplate::New();
+			info->Set("name", String::New("?????"));
+			info->Set("description", String::New("God knows what this does..."));
+			info->Set("author", String::New("Shitty programmer who can't write plugin info"));
+			info->Set("version", String::New("v0.0.0.0.0.0.0.1aa"));
+			info->Set("url", String::New("http://learnhowtoprogram.dude"));
+			return handle_scope.Close(info);
+		}
+
 
 		static cell_t InvalidV8Native(IPluginContext *pCtx, const cell_t *params)
 		{
@@ -145,14 +168,6 @@ namespace SMV8
 			return NativeParamInfo(*nameAscii, (CellType)type->Value());
 		}
 */
-		Handle<ObjectTemplate> PluginRuntime::GeneratePluginObject()
-		{
-			HandleScope handle_scope(isolate);
-			Handle<ObjectTemplate> plugin = ObjectTemplate::New();
-			plugin->Set("info",ObjectTemplate::New()->NewInstance());
-			return handle_scope.Close(plugin);
-		}
-
 		IPluginDebugInfo *PluginRuntime::GetDebugInfo()
 		{
 			return NULL;
@@ -245,8 +260,13 @@ namespace SMV8
 		{
 			cell_t local_addr;
 			cell_t *phys_addr;
-			ctx.HeapAlloc(realstr.size() + 1, &local_addr, &phys_addr);
-			ctx.StringToLocal(local_addr, realstr.size(), realstr.c_str());
+			size_t bytes_required = realstr.size() + 1;
+
+			/* Calculate cells required for the string */
+			size_t cells_required = (bytes_required + sizeof(cell_t) - 1) / sizeof(cell_t);
+				
+			ctx.HeapAlloc(cells_required, &local_addr, &phys_addr);
+			ctx.StringToLocal(local_addr, bytes_required, realstr.c_str());
 			local_addr_target = local_addr;
 		}
 

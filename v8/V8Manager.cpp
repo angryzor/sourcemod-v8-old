@@ -47,7 +47,10 @@ namespace SMV8
 	std::string Manager::CompileCoffee(const std::string& coffee) const
 	{
 		HandleScope handle_scope(isolate);
-		Handle<Context> context = Handle<Context>::New(isolate,coffeeCompilerContext);
+
+		Handle<Context> context = Handle<Context>::New(isolate, coffeeCompilerContext);
+		Context::Scope context_scope(context);
+
 		Handle<Object> coffeescript = context->Global()->Get(String::New("CoffeeScript")).As<Object>();
 
 		const int argc = 1;
@@ -72,7 +75,9 @@ namespace SMV8
 		if(location.find(".coffee", location.size() - 7) != string::npos)
 			code = CompileCoffee(code);
 
-		return new SPEmulation::PluginRuntime(isolate, code);
+		SourcePawn::IPluginRuntime *plugin = new SPEmulation::PluginRuntime(isolate, code);
+
+		return plugin;
 	}
 
 	Manager::~Manager(void)

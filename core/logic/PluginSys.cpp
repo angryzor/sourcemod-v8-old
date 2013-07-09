@@ -869,7 +869,7 @@ void CPluginManager::LoadPluginsFromDir(const char *basedir, const char *localpa
 			const char *name = dir->GetEntryName();
 			size_t len = strlen(name);
 			if (len >= 4
-				&& strcmp(&name[len-4], ".smx") == 0)
+				&& (strcmp(&name[len-4], ".smx") == 0 || strcmp(&name[len-3], ".js") || strcmp(&name[len-7], ".coffee")))
 			{
 				/* If the filename matches, load the plugin */
 				char plugin[PLATFORM_MAX_PATH];
