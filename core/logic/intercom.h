@@ -218,6 +218,7 @@ struct sm_core_t
 	IGameHelpers    *gamehelpers;
 	ISourcePawnEngine **spe1;
 	ISourcePawnEngine2 **spe2;
+	SMV8::IManager	**v8;
 	/* Functions */
 	ConVar *		(*FindConVar)(const char*);
 	unsigned int	(*strncopy)(char*, const char*, size_t);

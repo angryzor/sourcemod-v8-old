@@ -41,7 +41,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(V8_HOME)\include;$(SolutionDir)..\public;$(SolutionDir)..\public\sourcepawn;$(SolutionDir)..\sourcepawn\jit;$(IncludePath)</IncludePath>
+    <IncludePath>$(V8_HOME)\include;$(SolutionDir)..\public;$(SolutionDir)..\public\v8;$(SolutionDir)..\public\sourcepawn;$(SolutionDir)..\sourcepawn\jit;$(IncludePath)</IncludePath>
     <LibraryPath>$(V8_HOME)\build\Debug\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -84,6 +84,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\dll_exports.cpp" />
     <ClCompile Include="..\Plugin.cpp" />
     <ClCompile Include="..\SPAPIPluginFunctionEmulation.cpp" />
     <ClCompile Include="..\SPAPIPluginContextEmulation.cpp" />
@@ -99,6 +100,7 @@
     <ClInclude Include="..\..\public\v8\Plugin.h" />
     <ClInclude Include="..\..\public\v8\SPAPIEmulation.h" />
     <ClInclude Include="..\..\public\v8\V8Manager.h" />
+    <ClInclude Include="..\dll_exports.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

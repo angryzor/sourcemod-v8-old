@@ -56,6 +56,7 @@ ILibrary *g_pJIT = NULL;
 SourceHook::String g_BaseDir;
 ISourcePawnEngine *g_pSourcePawn = NULL;
 ISourcePawnEngine2 *g_pSourcePawn2 = NULL;
+SMV8::IManager *g_pV8 = NULL;
 IdentityToken_t *g_pCoreIdent = NULL;
 IForward *g_pOnMapEnd = NULL;
 IGameConfig *g_pGameConf = NULL;
@@ -237,6 +238,37 @@ bool SourceModBase::InitializeSourceMod(char *error, size_t maxlength, bool late
 		}
 		return false;
 	}
+
+	// Attempt to load V8
+	g_SMAPI->PathFormat(file, sizeof(file), "%s/bin/v8.%s",
+		GetSourceModPath(),
+		PLATFORM_LIB_EXT
+		);
+
+	g_pJIT = g_LibSys.OpenLibrary(file, myerror, sizeof(myerror));
+	if (!g_pJIT)
+	{
+		if (error && maxlength)
+		{
+			UTIL_Format(error, maxlength, "%s (failed to load bin/v8.%s)", 
+				myerror,
+				PLATFORM_LIB_EXT);
+		}
+		return false;
+	}
+
+	GET_V8 getv8 = (GET_V8)g_pJIT->GetSymbolAddress("GetV8Manager");
+	if (getv8 == NULL)
+	{
+		if (error && maxlength)
+		{
+			snprintf(error, maxlength, "V8 is too old; upgrade SourceMod");
+		}
+		ShutdownJIT();
+		return false;
+	}
+
+	g_pV8 = getv8();
 
 	g_pSourcePawn2->SetDebugListener(logicore.debugger);
 
