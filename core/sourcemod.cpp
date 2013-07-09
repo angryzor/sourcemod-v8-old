@@ -269,6 +269,7 @@ bool SourceModBase::InitializeSourceMod(char *error, size_t maxlength, bool late
 	}
 
 	g_pV8 = getv8();
+	g_pV8->Initialize(this);
 
 	g_pSourcePawn2->SetDebugListener(logicore.debugger);
 

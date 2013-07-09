@@ -15,22 +15,26 @@ namespace SMV8
 	class IManager
 	{
 	public:
+		virtual void Initialize(ISourceMod *sm) = 0;
 		virtual SourcePawn::IPluginRuntime *LoadPlugin(std::string location) = 0;
 	};
 
 	class Manager : public IManager
 	{
 	public:
-		Manager(ISourceMod *sm);
+		Manager();
+		virtual void Initialize(ISourceMod *sm);
 		virtual SourcePawn::IPluginRuntime *LoadPlugin(std::string location);
 		virtual ~Manager(void);
 	private:
-		void LoadCoffeeCompiler();
+		void LoadCoffeeCompiler(ISourceMod *sm);
 		std::string CompileCoffee(const std::string& coffee) const;
 		Persistent<Context> coffeeCompilerContext;
 		Isolate *isolate;
-		ISourceMod *sm;
 	};
+
 }
+
+typedef SMV8::IManager* (*GET_V8)();
 
 #endif // !defined _INCLUDE_V8_V8MANAGER_H_

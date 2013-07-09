@@ -11,11 +11,16 @@ namespace SMV8
 	using namespace v8;
 	using namespace SourceMod;
 
-	Manager::Manager(ISourceMod *sm) : isolate(Isolate::GetCurrent()), coffeeCompilerContext(isolate, Context::New(isolate)), sm(sm)
+	Manager::Manager() : isolate(Isolate::GetCurrent()), coffeeCompilerContext(isolate, Context::New(isolate))
 	{
 	}
 
-	void Manager::LoadCoffeeCompiler()
+	void Manager::Initialize(ISourceMod *sm)
+	{
+		LoadCoffeeCompiler(sm);
+	}
+
+	void Manager::LoadCoffeeCompiler(ISourceMod *sm)
 	{
 		HandleScope handle_scope(isolate);
 
