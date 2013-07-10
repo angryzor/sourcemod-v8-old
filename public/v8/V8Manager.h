@@ -16,7 +16,7 @@ namespace SMV8
 	{
 	public:
 		virtual void Initialize(ISourceMod *sm) = 0;
-		virtual SourcePawn::IPluginRuntime *LoadPlugin(std::string location) = 0;
+		virtual SourcePawn::IPluginRuntime *LoadPlugin(char* location) = 0;
 	};
 
 	class Manager : public IManager
@@ -24,7 +24,7 @@ namespace SMV8
 	public:
 		Manager();
 		virtual void Initialize(ISourceMod *sm);
-		virtual SourcePawn::IPluginRuntime *LoadPlugin(std::string location);
+		virtual SourcePawn::IPluginRuntime *LoadPlugin(char* location);
 		virtual ~Manager(void);
 	private:
 		void LoadCoffeeCompiler(ISourceMod *sm);

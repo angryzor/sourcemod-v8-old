@@ -15,17 +15,18 @@ namespace SMV8
 
 		enum CellType
 		{
-			INT,
-			FLOAT,
-			INTBYREF,
-			FLOATBYREF,
-			ARRAY,
-			STRING,
-			VARARG
+			INT = 0,
+			FLOAT = 1,
+			INTBYREF = 2,
+			FLOATBYREF = 3,
+			ARRAY = 4,
+			STRING = 5,
+			VARARG = 6
 		};
 
 		class PluginRuntime;
 		class PluginContext;
+		class PluginFunction;
 
 		struct NativeParamInfo
 		{
@@ -50,10 +51,34 @@ namespace SMV8
 			sp_pubvar_t pubvar;
 		};
 
+		struct PublicData
+		{
+			std::string name;
+			Persistent<Function> func;
+			sp_public_t state;
+			PluginFunction* pfunc;
+		};
+
+		struct RefData
+		{
+			RefData(cell_t* addr, size_t size) : addr(addr), size(size)
+			{}
+			cell_t* addr;
+			size_t size;
+		};
+
 		class PluginFunction : public IPluginFunction
 		{
 		public:
 			PluginFunction(PluginRuntime& ctx, funcid_t id);
+			virtual int PushCell(cell_t cell);
+			virtual int PushCellByRef(cell_t *cell, int flags=SM_PARAM_COPYBACK);
+			virtual int PushFloat(float number);
+			virtual int PushFloatByRef(float *number, int flags=SM_PARAM_COPYBACK);
+			virtual int PushArray(cell_t *inarray, unsigned int cells, int flags=0);
+			virtual int PushString(const char *string);
+			virtual int PushStringEx(char *buffer, size_t length, int sz_flags, int cp_flags);
+			virtual void Cancel();
 			virtual int Execute(cell_t *result);
 			virtual int CallFunction(const cell_t *params, unsigned int num_params, cell_t *result);
 			virtual IPluginContext *GetParentContext();
@@ -65,9 +90,17 @@ namespace SMV8
 				unsigned int num_params, 
 				cell_t *result);
 			virtual IPluginRuntime *GetParentRuntime();
+			virtual int PushValue(Handle<Value> val);
+			virtual void SetSingleCellValue(Handle<Value> val, cell_t *result);
+			virtual void ExtractResultValues(Handle<Object> resObj, cell_t *result);
+			virtual void CopyBackString(Handle<String> val, RefData& ref);
+			virtual void CopyBackArray(Handle<Array> val, RefData& ref);
 		private:
 			PluginRuntime& runtime;
 			funcid_t id;
+			Persistent<Value> params[SP_MAX_EXEC_PARAMS];
+			std::vector<RefData> refs;
+			int curParam;
 		};
 
 		/* Bridges between the SPAPI and V8 implementation by holding an internal stack only used during 
@@ -128,6 +161,7 @@ namespace SMV8
 				const cell_t *params, 
 				unsigned int num_params, 
 				cell_t *result);
+			Handle<Value> ExecuteV8(IPluginFunction *function, int argc, Handle<Value> argv[]);
 			virtual int GetLastNativeError();
 			virtual cell_t *GetLocalParams();
 			virtual void SetKey(int k, void *value);
@@ -163,6 +197,7 @@ namespace SMV8
 
 		class PluginRuntime : public IPluginRuntime
 		{
+			friend class PluginFunction;
 		public:
 			PluginRuntime(Isolate* isolate, std::string code);
 			virtual ~PluginRuntime();
@@ -187,6 +222,9 @@ namespace SMV8
 			virtual size_t GetMemUsage();
 			virtual unsigned char *GetCodeHash();
 			virtual unsigned char *GetDataHash();
+			virtual Handle<Value> CallV8Function(funcid_t func, int argc, Handle<Value> argv[]);
+			virtual Isolate* GetIsolate();
+			virtual void ExtractForwards();
 		protected:
 			virtual Handle<ObjectTemplate> GenerateGlobalObjectTemplate();
 			virtual Handle<ObjectTemplate> GenerateNativesObjectTemplate();
@@ -200,8 +238,8 @@ namespace SMV8
 			virtual void RegisterNativeInNativesObject(NativeData& native);
 			static void NativeRouter(const FunctionCallbackInfo<Value>& info);
 		private:
-			std::vector<NativeData> natives;
-			std::vector<sp_public_t> publics;
+			std::vector<NativeData*> natives;
+			std::vector<PublicData*> publics;
 			std::vector<PubvarData> pubvars;
 			bool pauseState;
 			Isolate* isolate;
@@ -239,43 +277,6 @@ namespace SMV8
 			virtual void OnFunctionEnd();
 			virtual int OnCallbackBegin(IPluginContext *pContext, sp_public_t *pubfunc);
 			virtual void OnCallbackEnd(int serial);
-		};
-
-		class SourcePawnEngine : public ISourcePawnEngine
-		{
-		public:
-			virtual sp_plugin_t *LoadFromFilePointer(FILE *fp, int *err);
-			virtual sp_plugin_t *LoadFromMemory(void *base, sp_plugin_t *plugin, int *err);
-			virtual int FreeFromMemory(sp_plugin_t *plugin);
-			virtual void *BaseAlloc(size_t size);
-			virtual void BaseFree(void *memory);
-			virtual void *ExecAlloc(size_t size);
-			virtual void ExecFree(void *address);
-			virtual IDebugListener *SetDebugListener(IDebugListener *listener);
-			virtual unsigned int GetContextCallCount();
-			virtual unsigned int GetEngineAPIVersion();
-			virtual void *AllocatePageMemory(size_t size);
-			virtual void SetReadWrite(void *ptr);
-			virtual void SetReadExecute(void *ptr);
-			virtual void FreePageMemory(void *ptr);
-		};
-
-		class SourcePawnEngine2 : public ISourcePawnEngine2
-		{
-		public:
-			virtual unsigned int GetAPIVersion();
-			virtual const char *GetEngineName();
-			virtual const char *GetVersionString();
-			virtual ICompilation *StartCompilation();
-			virtual IPluginRuntime *LoadPlugin(ICompilation *co, const char *file, int *err);
-			virtual SPVM_NATIVE_FUNC CreateFakeNative(SPVM_FAKENATIVE_FUNC callback, void *pData);
-			virtual void DestroyFakeNative(SPVM_NATIVE_FUNC func);
-			virtual IDebugListener *SetDebugListener(IDebugListener *listener);
-			virtual void SetProfiler(IProfiler *profiler);
-			virtual const char *GetErrorString(int err);
-			virtual bool Initialize();
-			virtual void Shutdown();
-			virtual IPluginRuntime *CreateEmptyRuntime(const char *name, uint32_t memory);
 		};
 	}
 }

@@ -1,4 +1,5 @@
 #include "Marshaller.h"
+#include <math.h>
 
 namespace SMV8
 {
@@ -17,14 +18,16 @@ namespace SMV8
 
 		Handle<Value> V8ToSPMarshaller::HandleNativeCall(const FunctionCallbackInfo<Value>& info)
 		{
-			if((size_t)info.Length() > native.params.size())
-				throw runtime_error("Not enough parameters for native call");
+//			if((size_t)info.Length() > native.params.size())
+//				throw runtime_error("Not enough parameters for native call");
 
 			cell_t params[SP_MAX_EXEC_PARAMS];
 
-			for(int i = 0; i < info.Length() && i < SP_MAX_EXEC_PARAMS; i++)
+			params[0] = info.Length();
+
+			for(int i = 0; i < std::min(info.Length(), SP_MAX_EXEC_PARAMS); i++)
 			{
-				PushParam(info[i], &params[i]);
+				PushParam(info[i], &params[i+1]);
 			}
 
 			cell_t result = native.state.pfn(&ctx, params);
@@ -89,14 +92,18 @@ namespace SMV8
 		void V8ToSPMarshaller::PushString(Handle<String> val, cell_t* param_dst)
 		{
 			string str = *String::Utf8Value(val);
+			size_t bytes_required = str.size() + 1;
+
+			/* Calculate cells required for the string */
+			size_t cells_required = (bytes_required + sizeof(cell_t) - 1) / sizeof(cell_t);
 			
 			cell_t dst_local;
 			cell_t* dst_phys;
-			ctx.HeapAlloc(str.size(), &dst_local, &dst_phys);
+			ctx.HeapAlloc(cells_required, &dst_local, &dst_phys);
 
 			refs.push(ReferenceInfo(STRING,dst_local));
 
-			ctx.StringToLocalUTF8(dst_local, str.size(), str.c_str(), NULL);
+			ctx.StringToLocalUTF8(dst_local, bytes_required, str.c_str(), NULL);
 			*param_dst = dst_local;
 		}
 
@@ -111,7 +118,7 @@ namespace SMV8
 
 			Handle<Array> refArr = Array::New();
 
-			for(int i = refs.size() - 1; i <= 0; i--)
+			for(int i = refs.size() - 1; i > 0; i--)
 			{
 				switch(refs.top().type)
 				{

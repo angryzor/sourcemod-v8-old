@@ -940,7 +940,7 @@ LoadRes CPluginManager::_LoadPlugin(CPlugin **_plugin, const char *path, bool de
 		char fullpath[PLATFORM_MAX_PATH];
 		g_pSM->BuildPath(Path_SM, fullpath, sizeof(fullpath), "plugins/%s", pPlugin->m_filename);
 
-		if(pPlugin->m_pRuntime = g_pV8->LoadPlugin(fullpath))
+		if((pPlugin->m_pRuntime = g_pV8->LoadPlugin(fullpath)) && pPlugin->UpdateInfo())
 			pPlugin->m_status = Plugin_Created;
 		else
 			pPlugin->m_status = Plugin_BadLoad;

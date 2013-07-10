@@ -43,13 +43,23 @@ namespace SMV8
 			Handle<Script> script = Script::Compile(String::New(code.c_str()));
 			script->Run();
 
-			nativesObj.Reset(isolate, ourContext->Global()->Get(String::New("plugin")).As<Object>());
-				
 			ExtractPluginInfo();
+			ExtractForwards();
 		}
 
 		PluginRuntime::~PluginRuntime()
 		{
+			for(PublicData* &pd: publics)
+			{
+				pd->func.Dispose();
+				delete pd;
+			}
+			publics.clear();
+			for(NativeData* &nd: natives)
+			{
+				delete nd;
+			}
+			natives.clear();
 			v8Context.Dispose();
 		}
 
@@ -62,7 +72,7 @@ namespace SMV8
 			Handle<ObjectTemplate> global(ObjectTemplate::New());
 			global->Set("natives",GenerateNativesObjectTemplate());
 			global->Set("plugin",GeneratePluginObjectTemplate());
-			//global->Set("forwards",GenerateForwardsObject());
+			global->Set("forwards",ObjectTemplate::New());
 			return handle_scope.Close(global);
 		}
 
@@ -94,11 +104,32 @@ namespace SMV8
 			info->Set("description", String::New("God knows what this does..."));
 			info->Set("author", String::New("Shitty programmer who can't write plugin info"));
 			info->Set("version", String::New("v0.0.0.0.0.0.0.1aa"));
-			info->Set("url", String::New("http://learnhowtoprogram.dude"));
+			info->Set("url", String::New("http://fillinyourplugininfo.dude"));
 			return handle_scope.Close(info);
 		}
 
+		void PluginRuntime::ExtractForwards()
+		{
+			HandleScope handle_scope(isolate);
 
+			Handle<Context> context(Handle<Context>::New(isolate,v8Context));
+			Handle<Object> global(context->Global());
+			Handle<Object> forwards(global->Get(String::New("forwards")).As<Object>());
+			Handle<Array> keys = forwards->GetOwnPropertyNames();
+
+			for(unsigned int i = 0; i < keys->Length(); i++)
+			{
+				Handle<String> key = keys->Get(i).As<String>();
+				PublicData* pd = new PublicData;
+				pd->name = *String::AsciiValue(key);
+				pd->func.Reset(isolate,forwards->Get(key).As<Function>());
+				pd->pfunc = new PluginFunction(*this, i);
+				pd->state.funcid = i;
+				pd->state.name = pd->name.c_str();
+				publics.push_back(pd);
+			}
+		}
+		
 		static cell_t InvalidV8Native(IPluginContext *pCtx, const cell_t *params)
 		{
 			return pCtx->ThrowNativeErrorEx(SP_ERROR_INVALID_NATIVE, "Invalid native");
@@ -112,26 +143,29 @@ namespace SMV8
 			if(info.Length() < 2)
 				ThrowException(String::New("Invalid argument count"));
 
-			NativeData nd;
-			nd.runtime = self;
-			nd.name = *String::AsciiValue(info[0].As<String>());
-			nd.state.flags = 0;
-			nd.state.pfn = InvalidV8Native;
-			nd.state.status = SP_NATIVE_UNBOUND;
-			nd.state.name = nd.name.c_str();
-			nd.state.user = reinterpret_cast<void *>(self->natives.size());
-			nd.resultType = (CellType)info[1].As<Integer>()->Value();
+			NativeData* nd = new NativeData;
+			nd->runtime = self;
+			nd->name = *String::AsciiValue(info[0].As<String>());
+			nd->state.flags = 0;
+			nd->state.pfn = InvalidV8Native;
+			nd->state.status = SP_NATIVE_UNBOUND;
+			nd->state.name = nd->name.c_str();
+			nd->state.user = reinterpret_cast<void *>(self->natives.size());
+			nd->resultType = (CellType)info[1].As<Integer>()->Value();
 			self->natives.push_back(nd);
 
-			self->RegisterNativeInNativesObject(nd);
+			self->RegisterNativeInNativesObject(*nd);
 		}
 
 		void PluginRuntime::RegisterNativeInNativesObject(NativeData& native)
 		{
 			HandleScope handle_scope(isolate);
-			Handle<Object> oNatives = Handle<Object>::New(isolate,nativesObj);
+			Handle<Context> context(Handle<Context>::New(isolate,v8Context));
+			Handle<Object> global(context->Global());
+			Handle<Object> oNatives = global->Get(String::New("natives")).As<Object>();
 			Handle<External> ndata = External::New(&native);
-			oNatives->Set(String::New(native.name.c_str()), FunctionTemplate::New(NativeRouter,ndata)->GetFunction());
+			Handle<Function> func = FunctionTemplate::New(NativeRouter,ndata)->GetFunction();
+			oNatives->Set(String::New(native.name.c_str()), func);
 		}
 
 		void PluginRuntime::NativeRouter(const FunctionCallbackInfo<Value>& info)
@@ -168,6 +202,21 @@ namespace SMV8
 			return NativeParamInfo(*nameAscii, (CellType)type->Value());
 		}
 */
+		Handle<Value> PluginRuntime::CallV8Function(funcid_t funcid, int argc, Handle<Value> argv[])
+		{
+			HandleScope handle_scope(isolate);
+
+			PublicData* data(publics[funcid]);
+			Handle<Function> func = Handle<Function>::New(isolate, data->func);
+
+			return handle_scope.Close(func->Call(func, argc, argv));
+		}
+
+		Isolate* PluginRuntime::GetIsolate()
+		{
+			return isolate;
+		}
+
 		IPluginDebugInfo *PluginRuntime::GetDebugInfo()
 		{
 			return NULL;
@@ -177,9 +226,10 @@ namespace SMV8
 		{
 			for(uint32_t i = 0; i < natives.size(); i++)
 			{
-				if(natives[i].name == name)
+				if(natives[i]->name == name)
 				{
 					*index = i;
+					return SP_ERROR_NONE;
 				}
 			}
 
@@ -191,7 +241,7 @@ namespace SMV8
 			if(index >= natives.size())
 				return SP_ERROR_INDEX;
 
-			*native = &natives[index].state;
+			*native = &natives[index]->state;
 
 			return SP_ERROR_NONE;
 		}
@@ -204,12 +254,26 @@ namespace SMV8
 		// TODO: Implement forwards
 		int PluginRuntime::FindPublicByName(const char *name, uint32_t *index)
 		{
+			for(uint32_t i = 0; i < publics.size(); i++)
+			{
+				if(publics[i]->name == name)
+				{
+					*index = i;
+					return SP_ERROR_NONE;
+				}
+			}
+
 			return SP_ERROR_NOT_FOUND;
 		}
 
 		int PluginRuntime::GetPublicByIndex(uint32_t index, sp_public_t **publicptr)
 		{
-			return SP_ERROR_INDEX;
+			if(index >= publics.size())
+				return SP_ERROR_INDEX;
+
+			*publicptr = &publics[index]->state;
+
+			return SP_ERROR_NONE;
 		}
 
 		uint32_t PluginRuntime::GetPublicsNum()
@@ -287,6 +351,7 @@ namespace SMV8
 				if(!strcmp(pubvars[i].pubvar.name,name))
 				{
 					*index = i;
+					return SP_ERROR_NONE;
 				}
 			}
 
@@ -315,12 +380,12 @@ namespace SMV8
 			if(FindPublicByName(public_name, &idx) != SP_ERROR_NONE)
 				return NULL;
 
-			return NULL;
+			return GetFunctionById(idx);
 		}
 
 		IPluginFunction *PluginRuntime::GetFunctionById(funcid_t func_id)
 		{
-			return NULL;
+			return publics[func_id]->pfunc;
 		}
 
 		IPluginContext *PluginRuntime::GetDefaultContext()

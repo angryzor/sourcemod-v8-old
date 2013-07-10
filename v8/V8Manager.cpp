@@ -61,9 +61,10 @@ namespace SMV8
 		return *jsutf8;
 	}
 
-	SourcePawn::IPluginRuntime *Manager::LoadPlugin(std::string location)
+	SourcePawn::IPluginRuntime *Manager::LoadPlugin(char* location)
 	{
-		ifstream ifs(location);
+		std::string slocation(location);
+		ifstream ifs(slocation);
 		if(!ifs.is_open())
 			throw runtime_error("Plugin can't be loaded");
 
@@ -72,7 +73,7 @@ namespace SMV8
 
 		std::string code(oss.str());
 
-		if(location.find(".coffee", location.size() - 7) != string::npos)
+		if(slocation.find(".coffee", slocation.size() - 7) != string::npos)
 			code = CompileCoffee(code);
 
 		SourcePawn::IPluginRuntime *plugin = new SPEmulation::PluginRuntime(isolate, code);

@@ -5,8 +5,9 @@ namespace SMV8
 	namespace SPEmulation
 	{
 		PluginContext::PluginContext(PluginRuntime* parentRuntime)
-			: parentRuntime(parentRuntime)
+			: parentRuntime(parentRuntime), inExec(false)
 		{
+			ClearLastNativeError();
 			heap = new char[4096];
 			hp = heap;
 		}
@@ -415,13 +416,25 @@ namespace SMV8
 			unsigned int num_params,
 			cell_t *result)
 		{
-			bool savedInExec = inExec;
+	/*		bool savedInExec = inExec;
 			inExec = true;
 
 
 
+			inExec = savedInExec;*/
+			return SP_ERROR_ABORTED;
+		}
+
+		Handle<Value> PluginContext::ExecuteV8(IPluginFunction *function, int argc, Handle<Value> argv[])
+		{
+			bool savedInExec = inExec;
+			inExec = true;
+
+			HandleScope handle_scope(parentRuntime->GetIsolate());
+			Handle<Value> res = parentRuntime->CallV8Function(function->GetFunctionID(), argc, argv);
+
 			inExec = savedInExec;
-			return SP_ERROR_NONE;
+			return handle_scope.Close(res);
 		}
 
 		int PluginContext::GetLastNativeError()
