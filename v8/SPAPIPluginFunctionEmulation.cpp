@@ -126,16 +126,34 @@ namespace SMV8
 				args[i] = Handle<Value>::New(runtime.isolate, params[i]);
 			}
 
+			TryCatch trycatch;
+
 			Handle<Value> res = pcontext->ExecuteV8(this, curParam, args);
 
-			if(res->IsObject())
-				ExtractResultValues(res.As<Object>(), result);
+			if (res.IsEmpty()) 
+			{  
+				Handle<Value> exception = trycatch.Exception();
+				String::AsciiValue exceptionStr(exception);
+
+				std::string err = *exceptionStr;
+
+				// TODO: Report errors 
+
+				Cancel();
+
+				return SP_ERROR_ABORTED;
+			}
 			else
-				SetSingleCellValue(res, result);
+			{
+				if(res->IsObject())
+					ExtractResultValues(res.As<Object>(), result);
+				else
+					SetSingleCellValue(res, result);
 
-			Cancel();
+				Cancel();
 
-			return SP_ERROR_NONE;
+				return SP_ERROR_NONE;
+			}
 		}
 
 		void PluginFunction::SetSingleCellValue(Handle<Value> val, cell_t *result)

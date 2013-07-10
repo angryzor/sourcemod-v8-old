@@ -68,12 +68,12 @@ namespace SMV8
 
 			char *phys_addr = heap + local_addr;
 			cell_t *size = (cell_t*)phys_addr - 1;
-			if(*size != hp - phys_addr)
+			if(*size * sizeof(cell_t) != hp - phys_addr)
 			{
 				return SP_ERROR_INVALID_ADDRESS;
 			}
 
-			hp = hp - (*size + 1) * sizeof(cell_t);
+			hp = (char*)size;
 
 			return SP_ERROR_NONE;
 		}
@@ -88,7 +88,7 @@ namespace SMV8
 			char *phys_addr = heap + local_addr;
 			cell_t *size = (cell_t*)phys_addr - 1;
 
-			hp = hp - (*size + 1) * sizeof(cell_t);
+			hp = (char*)size;
 
 			return SP_ERROR_NONE;
 		}

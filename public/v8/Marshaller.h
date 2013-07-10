@@ -14,8 +14,7 @@ namespace SMV8
 
 		struct ReferenceInfo
 		{
-			ReferenceInfo(CellType type, cell_t addr) : type(type), addr(addr) {}
-			CellType type;
+			Persistent<Object> refObj;
 			cell_t addr;
 		};
 
@@ -31,16 +30,18 @@ namespace SMV8
 			void PushFloat(Handle<Number> val, cell_t* param_dst);
 			void PushByRef(Handle<Object> val, cell_t* param_dst);
 			void PushArray(Handle<Array> val, cell_t* param_dst);
-			void PushString(Handle<String> val, cell_t* param_dst);
-			Handle<Object> BuildResultObject(cell_t result);
+			void PushString(Handle<String> val, Handle<Object> refObj, cell_t* param_dst);
+			Handle<Object> WrapInDummyObject(Handle<Value> val);
+			Handle<Value> GetResult(cell_t result);
 			Handle<Integer> PopIntRef();
 			Handle<Number> PopFloatRef();
 			Handle<String> PopString();
+			void CopyBackRefs();
 		private:
 			PluginRuntime& runtime;
 			IPluginContext& ctx;
 			NativeData& native;
-			std::stack<ReferenceInfo> refs;
+			std::stack<ReferenceInfo*> refs;
 			Isolate& isolate;
 		};
 	}

@@ -21,6 +21,8 @@ namespace SMV8
 //			if((size_t)info.Length() > native.params.size())
 //				throw runtime_error("Not enough parameters for native call");
 
+			HandleScope handle_scope(&isolate);
+
 			cell_t params[SP_MAX_EXEC_PARAMS];
 
 			params[0] = info.Length();
@@ -32,7 +34,9 @@ namespace SMV8
 
 			cell_t result = native.state.pfn(&ctx, params);
 
-			return BuildResultObject(result);
+			CopyBackRefs();
+
+			return handle_scope.Close(GetResult(result));
 		}
 
 		void V8ToSPMarshaller::PushParam(Handle<Value> val, cell_t* param_dst)
@@ -43,32 +47,39 @@ namespace SMV8
 				PushInt(val.As<Integer>(), param_dst);
 			else if(val->IsNumber())
 				PushFloat(val.As<Number>(), param_dst);
-			else if(val->IsArray())
-				PushArray(val.As<Array>(), param_dst);
-			else if(val->IsString())
-				PushString(val.As<String>(), param_dst);
+			else if(val->IsArray() || val->IsString())
+				PushByRef(WrapInDummyObject(val), param_dst);
 			else 
 				throw runtime_error("Unacceptable argument type");
+		}
+
+		Handle<Object> V8ToSPMarshaller::WrapInDummyObject(Handle<Value> val)
+		{
+			HandleScope handle_scope(&isolate);
+			Handle<Object> dummy = Object::New();
+			dummy->Set(String::New("value"), val);
+			return handle_scope.Close(dummy);
 		}
 
 		void V8ToSPMarshaller::PushByRef(Handle<Object> val, cell_t* param_dst)
 		{
 			HandleScope handle_scope(&isolate);
+			Handle<Value> realVal = val->Get(String::New("value"));
+
+			if(realVal->IsString()) {
+				PushString(realVal.As<String>(), val, param_dst);
+				return;
+			}
 
 			cell_t dst_local;
 			cell_t* dst_phys;
 			ctx.HeapAlloc(1, &dst_local, &dst_phys);
 
-			Handle<Value> realVal = val->Get(String::New("value"));
-
-			// I feel sad that i have to add this part. The code flow was so neat... :<
-			if(realVal->IsInt32())
-				refs.push(ReferenceInfo(INT,dst_local));
-			else if(realVal->IsNumber())
-				refs.push(ReferenceInfo(FLOAT,dst_local));
-			else
-				throw runtime_error("Invalid ref type");
-
+			ReferenceInfo *ri = new ReferenceInfo;
+			ri->addr = dst_local;
+			ri->refObj.Reset(&isolate, val);
+			refs.push(ri);
+			
 			PushParam(realVal,dst_phys);
 			*param_dst = dst_local;
 		}
@@ -89,10 +100,14 @@ namespace SMV8
 			// TODO: Add arrays
 		}
 
-		void V8ToSPMarshaller::PushString(Handle<String> val, cell_t* param_dst)
+		void V8ToSPMarshaller::PushString(Handle<String> val, Handle<Object> refObj, cell_t* param_dst)
 		{
 			string str = *String::Utf8Value(val);
 			size_t bytes_required = str.size() + 1;
+
+			// If this ref is carrying a size parameter for us, we set that size instead.
+			if(refObj->Has(String::New("size")))
+				bytes_required = refObj->Get(String::New("size")).As<Integer>()->Value();
 
 			/* Calculate cells required for the string */
 			size_t cells_required = (bytes_required + sizeof(cell_t) - 1) / sizeof(cell_t);
@@ -101,48 +116,47 @@ namespace SMV8
 			cell_t* dst_phys;
 			ctx.HeapAlloc(cells_required, &dst_local, &dst_phys);
 
-			refs.push(ReferenceInfo(STRING,dst_local));
+			ReferenceInfo *ri = new ReferenceInfo;
+			ri->addr = dst_local;
+			ri->refObj.Reset(&isolate, refObj);
+			refs.push(ri);
 
 			ctx.StringToLocalUTF8(dst_local, bytes_required, str.c_str(), NULL);
 			*param_dst = dst_local;
 		}
 
-		Handle<Object> V8ToSPMarshaller::BuildResultObject(cell_t result)
+		Handle<Value> V8ToSPMarshaller::GetResult(cell_t result)
+		{
+			return native.resultType == FLOAT ?
+			       Number::New(sp_ctof(result)) :
+			       Integer::New(result);
+		}
+
+		void V8ToSPMarshaller::CopyBackRefs()
 		{
 			HandleScope handle_scope(&isolate);
-
-			Handle<ObjectTemplate> resObj = ObjectTemplate::New();
-			resObj->Set("result", native.resultType == FLOAT ?
-			                      Number::New(sp_ctof(result)) :
-			                      Integer::New(result));
-
-			Handle<Array> refArr = Array::New();
-
-			for(int i = refs.size() - 1; i > 0; i--)
+			Handle<Value> valueStr = String::New("value");
+			for(int i = refs.size() - 1; i >= 0; i--)
 			{
-				switch(refs.top().type)
-				{
-				case INT:
-					refArr->Set(i, PopIntRef());
-					break;
-				case FLOAT:
-					refArr->Set(i, PopFloatRef());
-					break;
-				case STRING:
-					refArr->Set(i, PopString());
-					break;
-				}
+				ReferenceInfo *ri = refs.top();
+				Handle<Object> refObj = Handle<Object>::New(&isolate, ri->refObj);
+
+				if(refObj->Get(valueStr)->IsInt32())
+					refObj->Set(valueStr, PopIntRef());
+				else if(refObj->Get(valueStr)->IsNumber())
+					refObj->Set(valueStr, PopFloatRef());
+				else if(refObj->Get(valueStr)->IsString())
+					refObj->Set(valueStr, PopString());
+
+				ri->refObj.Dispose();
+				delete ri;
 				refs.pop();
 			}
-
-			resObj->Set("refs", refArr);
-
-			return resObj->NewInstance();
 		}
 
 		Handle<Integer> V8ToSPMarshaller::PopIntRef()
 		{
-			cell_t addr = refs.top().addr;
+			cell_t addr = refs.top()->addr;
 			cell_t* phys_addr;
 
 			ctx.LocalToPhysAddr(addr, &phys_addr);
@@ -156,7 +170,7 @@ namespace SMV8
 
 		Handle<Number> V8ToSPMarshaller::PopFloatRef()
 		{
-			cell_t addr = refs.top().addr;
+			cell_t addr = refs.top()->addr;
 			cell_t* phys_addr;
 
 			ctx.LocalToPhysAddr(addr, &phys_addr);
@@ -170,14 +184,17 @@ namespace SMV8
 
 		Handle<String> V8ToSPMarshaller::PopString()
 		{
-			cell_t addr = refs.top().addr;
+			HandleScope handle_scope(&isolate);
+			cell_t addr = refs.top()->addr;
 			char* str;
 
 			ctx.LocalToString(addr, &str);
 
+			Handle<String> result = String::New(str);
+
 			ctx.HeapPop(addr);
 
-			return String::New(str);
+			return handle_scope.Close(result);
 		}
 	}
 }
