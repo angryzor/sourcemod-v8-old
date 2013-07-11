@@ -59,11 +59,10 @@ namespace SMV8
 			PluginFunction* pfunc;
 		};
 
-		struct RefData
+		struct SPToV8ReferenceInfo
 		{
-			RefData(cell_t* addr, size_t size) : addr(addr), size(size)
-			{}
-			cell_t* addr;
+			Persistent<Object> refObj;
+			void* addr;
 			size_t size;
 		};
 
@@ -71,6 +70,7 @@ namespace SMV8
 		{
 		public:
 			PluginFunction(PluginRuntime& ctx, funcid_t id);
+			virtual ~PluginFunction();
 			virtual int PushCell(cell_t cell);
 			virtual int PushCellByRef(cell_t *cell, int flags=SM_PARAM_COPYBACK);
 			virtual int PushFloat(float number);
@@ -91,15 +91,16 @@ namespace SMV8
 				cell_t *result);
 			virtual IPluginRuntime *GetParentRuntime();
 			virtual int PushValue(Handle<Value> val);
-			virtual void SetSingleCellValue(Handle<Value> val, cell_t *result);
-			virtual void ExtractResultValues(Handle<Object> resObj, cell_t *result);
-			virtual void CopyBackString(Handle<String> val, RefData& ref);
-			virtual void CopyBackArray(Handle<Array> val, RefData& ref);
+			virtual void SetSingleCellValue(Handle<Number> val, cell_t *result);
+			virtual void CopyBackString(Handle<String> val, SPToV8ReferenceInfo *ref);
+			virtual void CopyBackArray(Handle<Array> val, SPToV8ReferenceInfo *ref);
+			virtual void CopyBackRefs();
+			virtual Handle<Object> MakeRefObj(Handle<Value> val, void *addr, size_t size, bool copyback);
 		private:
 			PluginRuntime& runtime;
 			funcid_t id;
 			Persistent<Value> params[SP_MAX_EXEC_PARAMS];
-			std::vector<RefData> refs;
+			std::vector<SPToV8ReferenceInfo*> refs;
 			int curParam;
 		};
 
