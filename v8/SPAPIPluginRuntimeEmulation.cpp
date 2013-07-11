@@ -141,7 +141,7 @@ namespace SMV8
 			PluginRuntime* self = (PluginRuntime*)info.Data().As<External>()->Value();
 			HandleScope(self->isolate);
 
-			if(info.Length() < 2)
+			if(info.Length() < 1)
 				ThrowException(String::New("Invalid argument count"));
 
 			NativeData* nd = new NativeData;
@@ -152,7 +152,7 @@ namespace SMV8
 			nd->state.status = SP_NATIVE_UNBOUND;
 			nd->state.name = nd->name.c_str();
 			nd->state.user = reinterpret_cast<void *>(self->natives.size());
-			nd->resultType = (CellType)info[1].As<Integer>()->Value();
+			nd->resultType = info.Length() >= 2 ? (CellType)info[1].As<Integer>()->Value() : INT;
 			self->natives.push_back(nd);
 
 			self->RegisterNativeInNativesObject(*nd);
