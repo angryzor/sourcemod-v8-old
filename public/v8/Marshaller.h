@@ -31,6 +31,7 @@ namespace SMV8
 			void PushByRef(Handle<Object> val, cell_t* param_dst);
 			void PushArray(Handle<Array> val, cell_t* param_dst);
 			void PushString(Handle<String> val, Handle<Object> refObj, cell_t* param_dst);
+			void PushFunction(Handle<Function> val, cell_t* param_dst);
 			Handle<Object> WrapInDummyObject(Handle<Value> val);
 			Handle<Value> GetResult(cell_t result);
 			Handle<Integer> PopIntRef();

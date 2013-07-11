@@ -72,10 +72,11 @@ namespace SMV8
 
 		int PluginFunction::PushString(const char *string)
 		{
+			// Alternative: give raw string back, but unpredictable
 			HandleScope handle_scope(runtime.isolate);
 			Handle<Context> context = Handle<Context>::New(runtime.isolate, runtime.v8Context);
 			Context::Scope context_scope(context);
-			return PushValue(String::New(string));
+			return PushValue(MakeRefObj(String::New(string), NULL, strlen(string) + 1, false));
 		}
 
 		int PluginFunction::PushStringEx(char *buffer, size_t length, int sz_flags, int cp_flags)

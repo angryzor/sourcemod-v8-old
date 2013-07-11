@@ -126,6 +126,7 @@ namespace SMV8
 				pd->pfunc = new PluginFunction(*this, i);
 				pd->state.funcid = i;
 				pd->state.name = pd->name.c_str();
+				pd->runtime = this;
 				publics.push_back(pd);
 			}
 		}
@@ -164,7 +165,7 @@ namespace SMV8
 			Handle<Object> global(context->Global());
 			Handle<Object> oNatives = global->Get(String::New("natives")).As<Object>();
 			Handle<External> ndata = External::New(&native);
-			Handle<Function> func = FunctionTemplate::New(NativeRouter,ndata)->GetFunction();
+			Handle<Function> func = FunctionTemplate::New(&NativeRouter,ndata)->GetFunction();
 			oNatives->Set(String::New(native.name.c_str()), func);
 		}
 
@@ -210,6 +211,62 @@ namespace SMV8
 			Handle<Function> func = Handle<Function>::New(isolate, data->func);
 
 			return handle_scope.Close(func->Call(func, argc, argv));
+		}
+
+		/**
+		 * Finds a suitable funcid for a volatile public
+		 * Funcid's must remain constant for functions, so old entries are made NULL,
+		 * but the entry is not removed from the public table.
+		 * 
+		 * This function will reuse nulled entries to prevent overflow.
+		 */
+		funcid_t PluginRuntime::AllocateVolatilePublic(PublicData *pd)
+		{
+			// Try to reuse funcid's
+			for(int i = 0; i < publics.size(); i++)
+			{
+				if(publics[i] == NULL)
+				{
+					publics[i] = pd;
+					return i;
+				}
+			}
+
+			// Didn't find a reusable funcid.
+			publics.push_back(pd);
+			return publics.size() - 1;
+		}
+
+		/**
+		 * Makes a "volatile" (weak reference) public for functions passed as parameter.
+		 * This public is delisted as soon as it goes out of scope.
+		 */
+		funcid_t PluginRuntime::MakeVolatilePublic(Handle<Function> func)
+		{
+			PublicData *pd = new PublicData;
+			funcid_t funcId = AllocateVolatilePublic(pd);
+
+			pd->func.Reset(isolate,func);
+			pd->name = "____auto____public_" + funcId;
+			pd->pfunc = new PluginFunction(*this, funcId);
+			pd->state.funcid = funcId;
+			pd->state.name = pd->name.c_str();
+			pd->runtime = this;
+
+			pd->func.MakeWeak(isolate, pd, &VolatilePublicDisposer); 
+
+			return funcId;
+		}
+
+		/**
+		 * Callback which is called when a volatile public goes out of scope
+		 */
+		void PluginRuntime::VolatilePublicDisposer(Isolate* isolate, Persistent<Function> *func, PublicData* pd)
+		{
+			funcid_t funcId = pd->state.funcid;
+			func->Dispose();
+			pd->runtime->publics[funcId] = NULL;
+			delete pd;
 		}
 
 		Isolate* PluginRuntime::GetIsolate()

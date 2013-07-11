@@ -57,6 +57,7 @@ namespace SMV8
 			Persistent<Function> func;
 			sp_public_t state;
 			PluginFunction* pfunc;
+			PluginRuntime *runtime;
 		};
 
 		struct SPToV8ReferenceInfo
@@ -226,6 +227,7 @@ namespace SMV8
 			virtual Handle<Value> CallV8Function(funcid_t func, int argc, Handle<Value> argv[]);
 			virtual Isolate* GetIsolate();
 			virtual void ExtractForwards();
+			virtual funcid_t MakeVolatilePublic(Handle<Function> func);
 		protected:
 			virtual Handle<ObjectTemplate> GenerateGlobalObjectTemplate();
 			virtual Handle<ObjectTemplate> GenerateNativesObjectTemplate();
@@ -238,6 +240,8 @@ namespace SMV8
 			virtual void LoadEmulatedString(const std::string& realstr, cell_t& local_addr_target);
 			virtual void RegisterNativeInNativesObject(NativeData& native);
 			static void NativeRouter(const FunctionCallbackInfo<Value>& info);
+			virtual funcid_t AllocateVolatilePublic(PublicData *pd);
+			static void VolatilePublicDisposer(Isolate* isolate, Persistent<Function> *func, PublicData* self);
 		private:
 			std::vector<NativeData*> natives;
 			std::vector<PublicData*> publics;

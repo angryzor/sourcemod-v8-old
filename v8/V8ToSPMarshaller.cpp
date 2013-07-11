@@ -41,7 +41,9 @@ namespace SMV8
 
 		void V8ToSPMarshaller::PushParam(Handle<Value> val, cell_t* param_dst)
 		{
-			if(val->IsObject())
+			if(val->IsFunction())
+				PushFunction(val.As<Function>(), param_dst);
+			else if(val->IsObject())
 				PushByRef(val.As<Object>(), param_dst);
 			else if(val->IsInt32())
 				PushInt(val.As<Integer>(), param_dst);
@@ -123,6 +125,12 @@ namespace SMV8
 
 			ctx.StringToLocalUTF8(dst_local, bytes_required, str.c_str(), NULL);
 			*param_dst = dst_local;
+		}
+
+		void V8ToSPMarshaller::PushFunction(Handle<Function> val, cell_t* param_dst)
+		{
+			funcid_t funcId = runtime.MakeVolatilePublic(val);
+			*param_dst = funcId;
 		}
 
 		Handle<Value> V8ToSPMarshaller::GetResult(cell_t result)
