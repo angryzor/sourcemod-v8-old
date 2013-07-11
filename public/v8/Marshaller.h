@@ -25,11 +25,12 @@ namespace SMV8
 			virtual ~V8ToSPMarshaller();
 			Handle<Value> HandleNativeCall(const FunctionCallbackInfo<Value>& info);
 		private:
-			void PushParam(Handle<Value> val, cell_t* param_dst);
+			void PushParam(Handle<Value> val, cell_t* param_dst, bool forcefloat);
+			void PushObject(Handle<Object> val, cell_t* param_dst, bool forcefloat);
 			void PushInt(Handle<Integer> val, cell_t* param_dst);
 			void PushFloat(Handle<Number> val, cell_t* param_dst);
-			void PushByRef(Handle<Object> val, cell_t* param_dst);
-			void PushArray(Handle<Array> val, cell_t* param_dst);
+			void PushByRef(Handle<Object> val, cell_t* param_dst, bool forcefloat);
+			void PushArray(Handle<Array> val, Handle<Object> refObj, cell_t* param_dst, bool forcefloat);
 			void PushString(Handle<String> val, Handle<Object> refObj, cell_t* param_dst);
 			void PushFunction(Handle<Function> val, cell_t* param_dst);
 			Handle<Object> WrapInDummyObject(Handle<Value> val);

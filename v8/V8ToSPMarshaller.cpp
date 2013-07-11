@@ -29,7 +29,7 @@ namespace SMV8
 
 			for(int i = 0; i < std::min(info.Length(), SP_MAX_EXEC_PARAMS); i++)
 			{
-				PushParam(info[i], &params[i+1]);
+				PushParam(info[i], &params[i+1], false);
 			}
 
 			cell_t result = native.state.pfn(&ctx, params);
@@ -39,18 +39,18 @@ namespace SMV8
 			return handle_scope.Close(GetResult(result));
 		}
 
-		void V8ToSPMarshaller::PushParam(Handle<Value> val, cell_t* param_dst)
+		void V8ToSPMarshaller::PushParam(Handle<Value> val, cell_t* param_dst, bool forcefloat)
 		{
 			if(val->IsFunction())
 				PushFunction(val.As<Function>(), param_dst);
 			else if(val->IsObject())
-				PushByRef(val.As<Object>(), param_dst);
-			else if(val->IsInt32())
+				PushObject(val.As<Object>(), param_dst, forcefloat);
+			else if(!forcefloat && val->IsInt32())
 				PushInt(val.As<Integer>(), param_dst);
 			else if(val->IsNumber())
 				PushFloat(val.As<Number>(), param_dst);
 			else if(val->IsArray() || val->IsString())
-				PushByRef(WrapInDummyObject(val), param_dst);
+				PushByRef(WrapInDummyObject(val), param_dst, forcefloat);
 			else 
 				throw runtime_error("Unacceptable argument type");
 		}
@@ -63,13 +63,26 @@ namespace SMV8
 			return handle_scope.Close(dummy);
 		}
 
-		void V8ToSPMarshaller::PushByRef(Handle<Object> val, cell_t* param_dst)
+		void V8ToSPMarshaller::PushObject(Handle<Object> val, cell_t* param_dst, bool forcefloat)
+		{
+			if(val->Has(String::New("forcefloat")))
+				PushParam(val->Get(String::New("value")), param_dst, true);
+			else
+				PushByRef(val.As<Object>(), param_dst, forcefloat);
+		}
+
+		void V8ToSPMarshaller::PushByRef(Handle<Object> val, cell_t* param_dst, bool forcefloat)
 		{
 			HandleScope handle_scope(&isolate);
 			Handle<Value> realVal = val->Get(String::New("value"));
 
 			if(realVal->IsString()) {
 				PushString(realVal.As<String>(), val, param_dst);
+				return;
+			}
+
+			if(realVal->IsArray()) {
+				PushArray(realVal.As<Array>(), val, param_dst, forcefloat);
 				return;
 			}
 
@@ -82,7 +95,7 @@ namespace SMV8
 			ri->refObj.Reset(&isolate, val);
 			refs.push(ri);
 			
-			PushParam(realVal,dst_phys);
+			PushParam(realVal,dst_phys,forcefloat);
 			*param_dst = dst_local;
 		}
 
@@ -97,9 +110,24 @@ namespace SMV8
 			*param_dst = sp_ftoc(fNumb);
 		}
 
-		void V8ToSPMarshaller::PushArray(Handle<Array> val, cell_t* param_dst)
+		void V8ToSPMarshaller::PushArray(Handle<Array> val, Handle<Object> refObj, cell_t* param_dst, bool forcefloat)
 		{
-			// TODO: Add arrays
+			size_t cells_required = val->Length();
+
+			// If this ref is carrying a size parameter for us, we set that size instead.
+			if(refObj->Has(String::New("size")))
+				cells_required = refObj->Get(String::New("size")).As<Integer>()->Value();
+			
+			cell_t dst_local;
+			cell_t* dst_phys;
+			ctx.HeapAlloc(cells_required, &dst_local, &dst_phys);
+
+			for(unsigned int i = 0; i < cells_required; i++)
+			{
+				PushParam(val->Get(i), dst_phys + i, forcefloat);
+			}
+
+			*param_dst = dst_local;
 		}
 
 		void V8ToSPMarshaller::PushString(Handle<String> val, Handle<Object> refObj, cell_t* param_dst)
