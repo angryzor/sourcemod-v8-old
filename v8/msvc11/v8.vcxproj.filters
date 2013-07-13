@@ -13,6 +13,20 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Header Files\Require">
+      <UniqueIdentifier>{8f40eb80-ff47-48bb-8386-bbccd8654fe3}</UniqueIdentifier>
+      <Extensions>
+      </Extensions>
+    </Filter>
+    <Filter Include="Source Files\Require">
+      <UniqueIdentifier>{f1687a74-1628-47f4-864b-c660460387c8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Dependencies">
+      <UniqueIdentifier>{7be4066a-5316-4bf1-b5b0-cadf28e3261f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Dependencies">
+      <UniqueIdentifier>{cb7d116d-86aa-4284-aa1a-82a1673aff5b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Plugin.cpp">
@@ -36,6 +50,18 @@
     <ClCompile Include="..\dll_exports.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\Require\CurrentDirectoryProvider.cpp">
+      <Filter>Source Files\Require</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Require\PackageRepositoryProvider.cpp">
+      <Filter>Source Files\Require</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Require\RequireManager.cpp">
+      <Filter>Source Files\Require</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Dependencies\DependencyManager.cpp">
+      <Filter>Source Files\Dependencies</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />
@@ -55,6 +81,24 @@
     </ClInclude>
     <ClInclude Include="..\dll_exports.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Require\CurrentDirectoryProvider.h">
+      <Filter>Header Files\Require</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Require\IRequireProvider.h">
+      <Filter>Header Files\Require</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Require\PackageRepositoryProvider.h">
+      <Filter>Header Files\Require</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Require\RequireManager.h">
+      <Filter>Header Files\Require</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Dependencies\DependencyManager.h">
+      <Filter>Header Files\Dependencies</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Dependencies\IPackageSource.h">
+      <Filter>Header Files\Dependencies</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

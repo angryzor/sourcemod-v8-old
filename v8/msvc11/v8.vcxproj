@@ -84,8 +84,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\Dependencies\DependencyManager.cpp" />
     <ClCompile Include="..\dll_exports.cpp" />
     <ClCompile Include="..\Plugin.cpp" />
+    <ClCompile Include="..\Require\CurrentDirectoryProvider.cpp" />
+    <ClCompile Include="..\Require\PackageRepositoryProvider.cpp" />
+    <ClCompile Include="..\Require\RequireManager.cpp" />
     <ClCompile Include="..\SPAPIPluginFunctionEmulation.cpp" />
     <ClCompile Include="..\SPAPIPluginContextEmulation.cpp" />
     <ClCompile Include="..\SPAPIPluginRuntimeEmulation.cpp" />
@@ -100,7 +104,13 @@
     <ClInclude Include="..\..\public\v8\Plugin.h" />
     <ClInclude Include="..\..\public\v8\SPAPIEmulation.h" />
     <ClInclude Include="..\..\public\v8\V8Manager.h" />
+    <ClInclude Include="..\Dependencies\DependencyManager.h" />
+    <ClInclude Include="..\Dependencies\IPackageSource.h" />
     <ClInclude Include="..\dll_exports.h" />
+    <ClInclude Include="..\Require\CurrentDirectoryProvider.h" />
+    <ClInclude Include="..\Require\IRequireProvider.h" />
+    <ClInclude Include="..\Require\PackageRepositoryProvider.h" />
+    <ClInclude Include="..\Require\RequireManager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
