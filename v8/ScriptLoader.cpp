@@ -9,6 +9,7 @@ namespace SMV8
 	using namespace std;
 	
 	SMV8Script::SMV8Script(std::string code, std::string path)
+		: code(code), path(path)
 	{
 	}
 
@@ -122,7 +123,7 @@ namespace SMV8
 		HandleScope handle_scope(isolate);
 
 		char fullpath[PLATFORM_MAX_PATH];
-		sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), "v8/coffee_compiler.js");
+		sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), "v8/support/coffee_compiler.js");
 
 		ifstream ifs(fullpath);
 		if(!ifs.is_open())

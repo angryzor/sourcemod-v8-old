@@ -221,11 +221,11 @@
 				else
 					log("A new version is available for package #{pkg}: #{rSat.bestSatisfier(requirement).version}") if rSat? && lSat? && PkgProvider.bestOfProviders(rSat.compareTo(lSat,requirement) > 0)
 
-				providers.dropNull()
+				providers = providers.dropNull()
 
 				throw "Can't find source for package #{pkg}! Aborting..." if providers.length == 0
 
-				provider = PkgProvider.bestOfProviders(providers)
+				provider = PkgProvider.bestOfProviders(providers,requirement)
 				pkgAliases[currentPkg][pkg] = provider.installBestSatisfier(requirement)
 
 		addRemoteSource = (source) ->
@@ -251,6 +251,7 @@
 
 		resolvePath = (pkg, path) ->
 			firstSlash = path.indexOf("/")
+			firstSlash = path.length if firstSlash == -1
 			alias = path.substring(0, firstSlash)
 			getPkgAliases(pkg)[alias] + path.substring(firstSlash + 1)
 
@@ -275,12 +276,3 @@
 			resetAliases: resetAliases
 	).call(@)
 ).call(@)
-
-externals =
-	readPakfile: (a) ->
-		return "dep('foo','1.0.3');"
-	findLocalVersions: (a) ->
-		return ["1.0.2","1.0.3"]
-
-@dependencyManager.loadDependencies("bar-3.0.0")
-console.log(@dependencyManager.getPkgAlias("bar-3.0.0","foo"))

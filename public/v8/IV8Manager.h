@@ -17,7 +17,7 @@ namespace SMV8
 	{
 	public:
 		virtual void Initialize(ISourceMod *sm, ILibrarySys *libsys) = 0;
-		virtual SourcePawn::IPluginRuntime *LoadPlugin(char* location) = 0;
+		virtual SourcePawn::IPluginRuntime *LoadPlugin(char* filename) = 0;
 	};
 
 }

@@ -893,7 +893,8 @@ static bool IsV8Plugin(CPlugin* plugin)
 	std::string filename(plugin->GetFilename());
 	
 	return 	filename.find(".js", filename.size() - 3) != std::string::npos
-		||	filename.find(".coffee", filename.size() - 7) != std::string::npos;
+		||	filename.find(".coffee", filename.size() - 7) != std::string::npos
+		||	filename.find(".pakplugin", filename.size() - 10) != std::string::npos;
 }
 
 LoadRes CPluginManager::_LoadPlugin(CPlugin **_plugin, const char *path, bool debug, PluginType type, char error[], size_t maxlength)
@@ -937,10 +938,10 @@ LoadRes CPluginManager::_LoadPlugin(CPlugin **_plugin, const char *path, bool de
 
 	if(IsV8Plugin(pPlugin))
 	{
-		char fullpath[PLATFORM_MAX_PATH];
-		g_pSM->BuildPath(Path_SM, fullpath, sizeof(fullpath), "plugins/%s", pPlugin->m_filename);
+//		char fullpath[PLATFORM_MAX_PATH];
+//		g_pSM->BuildPath(Path_SM, fullpath, sizeof(fullpath), "plugins/%s", pPlugin->m_filename);
 
-		if((pPlugin->m_pRuntime = g_pV8->LoadPlugin(fullpath)) && pPlugin->UpdateInfo())
+		if((pPlugin->m_pRuntime = g_pV8->LoadPlugin(pPlugin->m_filename)) && pPlugin->UpdateInfo())
 			pPlugin->m_status = Plugin_Created;
 		else
 			pPlugin->m_status = Plugin_BadLoad;

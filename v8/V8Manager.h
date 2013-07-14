@@ -14,7 +14,7 @@ namespace SMV8
 	public:
 		Manager();
 		virtual void Initialize(ISourceMod *sm, ILibrarySys *libsys);
-		virtual SourcePawn::IPluginRuntime *LoadPlugin(char* location);
+		virtual SourcePawn::IPluginRuntime *LoadPlugin(char* filename);
 		SourcePawn::IPluginRuntime *LoadPakPlugin(const string& package_name);
 		virtual ~Manager(void);
 	private:

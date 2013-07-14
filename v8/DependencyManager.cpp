@@ -10,7 +10,7 @@ namespace SMV8
 	using namespace SourceMod;
 	using namespace v8;
 
-	const std::string DependencyManager::packages_root("v8/packages");
+	const std::string DependencyManager::packages_root("v8/packages/");
 
 	DependencyManager::DependencyManager(Isolate *isolate, ISourceMod *sm, ILibrarySys *libsys, ScriptLoader* scriptLoader)
 		: isolate(isolate), sm(sm), libsys(libsys), scriptLoader(scriptLoader)
@@ -21,7 +21,11 @@ namespace SMV8
 		Handle<Context> context = Context::New(isolate, NULL, BuildGlobalObjectTemplate());
 		depman_context.Reset(isolate, context);
 		Context::Scope context_scope(context);
-		Script::Compile(String::New(pkgman.GetCode().c_str()))->Run();
+		Script::Compile(String::New(pkgman.GetCode().c_str()))->Run().As<Object>();
+		Handle<Object> depMan = context->Global()->Get(String::New("dependencyManager")).As<Object>();
+		bool depManEmpty = depMan.IsEmpty();
+		bool depManObj = depMan->IsObject();
+		jsDepMan.Reset(isolate, depMan);
 	}
 
 	DependencyManager::~DependencyManager()
@@ -117,10 +121,8 @@ namespace SMV8
 		string package = *String::AsciiValue(info[0].As<String>());
 		string pkgfile = self->packages_root + package + "/Pkgfile";
 
-		char fullpath[PLATFORM_MAX_PATH];
-		self->sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), pkgfile.c_str());
-			
-		self->scriptLoader->LoadScript(fullpath, true);
+		SMV8Script s = self->scriptLoader->LoadScript(pkgfile, true);
+		info.GetReturnValue().Set(String::New(s.GetCode().c_str()));
 	}
 
 	void DependencyManager::ext_findLocalVersions(const FunctionCallbackInfo<Value>& info)
@@ -147,7 +149,9 @@ namespace SMV8
 		{
 			if(pkgCollectionDir->IsEntryDirectory())
 			{
-				res->Set(i++, String::New(pkgCollectionDir->GetEntryName()));
+				const char* name = pkgCollectionDir->GetEntryName();
+				if(strcmp(name, ".") != 0 && strcmp(name, "..") != 0)
+					res->Set(i++, String::New(name));
 			}
 
 			pkgCollectionDir->NextEntry();
