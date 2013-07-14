@@ -5,6 +5,8 @@
 #include <vector>
 #include <cstdarg>
 #include <v8.h>
+#include "ScriptLoader.h"
+#include "Require/RequireManager.h"
 
 namespace SMV8
 {
@@ -201,7 +203,7 @@ namespace SMV8
 		{
 			friend class PluginFunction;
 		public:
-			PluginRuntime(Isolate* isolate, std::string code);
+			PluginRuntime(Isolate* isolate, Require::RequireManager *reqMan, SMV8Script plugin_script);
 			virtual ~PluginRuntime();
 			virtual IPluginDebugInfo *GetDebugInfo();
 			virtual int FindNativeByName(const char *name, uint32_t *index);
@@ -242,6 +244,7 @@ namespace SMV8
 			static void NativeRouter(const FunctionCallbackInfo<Value>& info);
 			virtual funcid_t AllocateVolatilePublic(PublicData *pd);
 			static void VolatilePublicDisposer(Isolate* isolate, Persistent<Function> *func, PublicData* self);
+			static void Require(const FunctionCallbackInfo<Value>& info);
 		private:
 			std::vector<NativeData*> natives;
 			std::vector<PublicData*> publics;
@@ -251,6 +254,8 @@ namespace SMV8
 			Persistent<Context> v8Context;
 			PluginContext ctx;
 			Persistent<Object> nativesObj;
+			SMV8Script plugin_script;
+			Require::RequireManager *reqMan;
 		};
 
 

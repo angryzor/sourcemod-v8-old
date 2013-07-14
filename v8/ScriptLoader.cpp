@@ -18,6 +18,10 @@ namespace SMV8
 		path = other.path;
 	}
 
+	SMV8Script::~SMV8Script()
+	{
+	}
+
 	std::string SMV8Script::GetCode() const
 	{
 		return code;
@@ -55,9 +59,9 @@ namespace SMV8
 		slashloc = localdir.find('/',slashloc + 1);
 		return localdir.substr(0, slashloc);
 	}
-
+	
 	ScriptLoader::ScriptLoader(Isolate *isolate, ISourceMod *sm)
-		: isolate(isolate)
+		: isolate(isolate), sm(sm)
 	{
 		HandleScope handle_scope(isolate);
 		coffeeCompilerContext.Reset(isolate, Context::New(isolate));
@@ -71,38 +75,46 @@ namespace SMV8
 
 	SMV8Script ScriptLoader::AutoLoadScript(const std::string& location) const
 	{
-		ifstream ifs(location + ".coffee");
+		char fullpath[PLATFORM_MAX_PATH];
+		sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), location.c_str());
+		string sfullpath(fullpath);
+
+		ifstream ifs(sfullpath + ".coffee");
 		ostringstream content;
 
 		if(ifs.is_open())
 		{
 			content << ifs.rdbuf();
-			return SMV8Script(CompileCoffee(content.str()), location);
+			return SMV8Script(CompileCoffee(content.str()), sfullpath);
 		}
 
-		ifs.open(location + ".js");
+		ifs.open(sfullpath + ".js");
 		if(ifs.is_open())
 		{
 			content << ifs.rdbuf();
-			return SMV8Script(content.str(), location);
+			return SMV8Script(content.str(), sfullpath);
 		}
 
-		throw runtime_error("Script can't be loaded: " + location);
+		throw runtime_error("Script can't be loaded: " + sfullpath);
 	}
 
 	SMV8Script ScriptLoader::LoadScript(const std::string& location, bool forceCoffee) const
 	{
-		ifstream ifs(location);
+		char fullpath[PLATFORM_MAX_PATH];
+		sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), location.c_str());
+		string sfullpath(fullpath);
+
+		ifstream ifs(fullpath);
 		if(!ifs.is_open())
-			throw runtime_error("Script can't be loaded" + location);
+			throw runtime_error("Script can't be loaded" + sfullpath);
 
 		ostringstream oss;
 		oss << ifs.rdbuf();
 
-		if(forceCoffee || location.find(".coffee", location.size() - 7) != string::npos)
-			return SMV8Script(CompileCoffee(oss.str()), location);	
+		if(forceCoffee || sfullpath.find(".coffee", sfullpath.size() - 7) != string::npos)
+			return SMV8Script(CompileCoffee(oss.str()), sfullpath);	
 
-		return SMV8Script(oss.str(), location);
+		return SMV8Script(oss.str(), sfullpath);
 	}
 
 	void ScriptLoader::LoadCoffeeCompiler(ISourceMod *sm)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ISourceMod.h>
+#include <ILibrarySys.h>
 #include <v8.h>
 #include <string>
 #include <map>
@@ -19,9 +20,10 @@ namespace SMV8
 		virtual ~DependencyManager();
 		void LoadDependencies(const string& package_path);
 		string ResolvePath(const string& source_pkg, const string& require_path);
-		void Depend(const string& pkg, const string& restriction);
-		static Handle<Value> ext_readPakfile(const Arguments& args);
-		static Handle<Value> ext_findLocalVersions(const Arguments& args);
+		void Depend(const string& depender, const string& pkg, const string& restriction);
+		void ResetAliases(const string& depender);
+		static void ext_readPakfile(const FunctionCallbackInfo<Value>& info);
+		static void ext_findLocalVersions(const FunctionCallbackInfo<Value>& info);
 		static const std::string packages_root;
 	private:
 		Handle<ObjectTemplate> BuildGlobalObjectTemplate();

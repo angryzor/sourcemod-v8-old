@@ -21,8 +21,8 @@ namespace SMV8
 
 			std::string PackageRepositoryProvider::ResolvePath(const SMV8Script& requirer, const string& path) const
 			{
-				string package = requirer.GetVersionedPackage();
-				string target_dir = package_dir + depMan->ResolvePath(package,path);
+				string package = requirer.IsInPackage() ? requirer.GetVersionedPackage() : "__nopak__" + requirer.GetPath();
+				string target_dir = DependencyManager::packages_root + depMan->ResolvePath(package,path);
 
 				char fullpath[PLATFORM_MAX_PATH];
 				sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), target_dir.c_str());
@@ -32,24 +32,32 @@ namespace SMV8
 
 			bool PackageRepositoryProvider::Provides(const SMV8Script& requirer, const string& path) const
 			{
-				if(!requirer.IsInPackage())
+				try
+				{
+					ifstream ifs(ResolvePath(requirer, path));
+					return ifs.is_open();
+				}
+				catch(runtime_error& e)
+				{
 					return false;
-
-				ifstream ifs(ResolvePath(requirer, path));
-				return ifs.is_open();
+				}
 			}
 			
 			string PackageRepositoryProvider::Require(const SMV8Script& requirer, const string& path) const
 			{
-				if(!requirer.IsInPackage())
-					return false;
+				try
+				{
+					string fullpath(ResolvePath(requirer, path));
+					ifstream ifs(fullpath);
+					if(!ifs.is_open())
+						throw logic_error("Can't open required path " + path + ". This should not happen.");
 
-				string fullpath(ResolvePath(requirer, path));
-				ifstream ifs(fullpath);
-				if(!ifs.is_open())
+					return fullpath;
+				}
+				catch(runtime_error& e)
+				{
 					throw logic_error("Can't open required path " + path + ". This should not happen.");
-
-				return fullpath;
+				}
 			}
 
 			std::string PackageRepositoryProvider::GetName() const

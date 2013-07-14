@@ -19,32 +19,39 @@ namespace SMV8
 		HandleScope handle_scope(isolate);
 		scriptLoader = new ScriptLoader(isolate, sm);
 		depMan = new DependencyManager(isolate, sm, libsys, scriptLoader);
+		reqMan = new Require::RequireManager(sm, libsys, depMan);
+		this->sm = sm;
 	}
 
 
 	SourcePawn::IPluginRuntime *Manager::LoadPlugin(char* location)
 	{
-		string slocation(location);
+			string slocation(location);
 
-		auto pakPluginLoc = slocation.find(".pakplugin", slocation.size() - 10);
+			auto pakPluginLoc = slocation.find(".pakplugin", slocation.size() - 10);
 
-		if(pakPluginLoc != string::npos)
-		{
-			auto afterSlash = slocation.find_last_of("/") + 1;
-			return LoadPakPlugin(slocation.substr(afterSlash, slocation.find(".coffee",pakPluginLoc - afterSlash)));	
-		}
+			if(pakPluginLoc != string::npos)
+			{
+				auto afterSlash = slocation.find_last_of("/") + 1;
+				return LoadPakPlugin(slocation.substr(afterSlash, slocation.find(".coffee",pakPluginLoc - afterSlash)));	
+			}
 
-		return new SPEmulation::PluginRuntime(isolate, scriptLoader->LoadScript(slocation));
+			string fake_package_id = "__nopak__" + slocation;
+			depMan->ResetAliases(fake_package_id);
+			depMan->Depend(fake_package_id, "sourcemod", ">= 0");
+			return new SPEmulation::PluginRuntime(isolate, reqMan, scriptLoader->LoadScript(slocation));
 	}
 
 	SourcePawn::IPluginRuntime *Manager::LoadPakPlugin(const string& package_name)
 	{
 		try
 		{
-			depMan->Depend(package_name, ">= 0");
-			string script_path = string("v8/packages/") + depMan->ResolvePath("__depend__",package_name) + "/main";
+			string fake_package_id = "__pakplugin__" + package_name;
+			depMan->ResetAliases(fake_package_id);
+			depMan->Depend(fake_package_id, package_name, ">= 0");
+			string script_path = string("v8/packages/") + depMan->ResolvePath(fake_package_id,package_name) + "/main";
 
-			return new SPEmulation::PluginRuntime(isolate, scriptLoader->AutoLoadScript(script_path));
+			return new SPEmulation::PluginRuntime(isolate, reqMan, scriptLoader->AutoLoadScript(script_path));
 		}
 		catch(runtime_error& err)
 		{
@@ -54,6 +61,7 @@ namespace SMV8
 
 	Manager::~Manager(void)
 	{
+		delete reqMan;
 		delete depMan;
 		delete scriptLoader;
 	}

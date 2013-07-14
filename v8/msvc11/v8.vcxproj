@@ -84,7 +84,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\Dependencies\DependencyManager.cpp" />
+    <ClCompile Include="..\DependencyManager.cpp" />
     <ClCompile Include="..\dll_exports.cpp" />
     <ClCompile Include="..\Plugin.cpp" />
     <ClCompile Include="..\Require\CurrentDirectoryProvider.cpp" />
@@ -104,15 +104,15 @@
     <ClInclude Include="..\..\public\v8\Marshaller.h" />
     <ClInclude Include="..\..\public\v8\Plugin.h" />
     <ClInclude Include="..\..\public\v8\SPAPIEmulation.h" />
-    <ClInclude Include="..\..\public\v8\V8Manager.h" />
-    <ClInclude Include="..\Dependencies\DependencyManager.h" />
-    <ClInclude Include="..\Dependencies\IPackageSource.h" />
+    <ClInclude Include="..\..\public\v8\IV8Manager.h" />
+    <ClInclude Include="..\DependencyManager.h" />
     <ClInclude Include="..\dll_exports.h" />
     <ClInclude Include="..\Require\CurrentDirectoryProvider.h" />
     <ClInclude Include="..\Require\IRequireProvider.h" />
     <ClInclude Include="..\Require\PackageRepositoryProvider.h" />
     <ClInclude Include="..\Require\RequireManager.h" />
     <ClInclude Include="..\ScriptLoader.h" />
+    <ClInclude Include="..\V8Manager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

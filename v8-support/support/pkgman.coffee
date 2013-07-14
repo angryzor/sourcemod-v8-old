@@ -254,8 +254,8 @@
 			alias = path.substring(0, firstSlash)
 			getPkgAliases(pkg)[alias] + path.substring(firstSlash + 1)
 
-		depend = (pkg, requirement) ->
-			currentPkg = "__depend__"
+		depend = (depender, pkg, requirement) ->
+			currentPkg = depender
 			pkgAliases[currentPkg] = {}
 
 			pakfileExposed.dep(pkg,requirement)
@@ -263,12 +263,16 @@
 			subpkgs = (subpkgdir for own subpkg, subpkgdir of pkgAliases[currentPkg])
 			loadDependencies(subpkg) for subpkg in subpkgs
 
+		resetAliases = (depender) ->
+			pkgAliases[depender] = {}
+
 		@dependencyManager =
 			addRemoteSource: addRemoteSource
 			loadDependencies: loadDependencies
 			getPkgAliases: getPkgAliases
 			resolvePath: resolvePath
 			depend: depend
+			resetAliases: resetAliases
 	).call(@)
 ).call(@)
 

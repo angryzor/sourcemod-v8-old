@@ -7,11 +7,11 @@ namespace SMV8
 	namespace Require
 	{
 		using namespace std;
-		RequireManager::RequireManager(ISourceMod *sm, ILibrarySys *libsys)
+		RequireManager::RequireManager(ISourceMod *sm, ILibrarySys *libsys, DependencyManager *depMan)
 			: sm(sm), libsys(libsys)
 		{
 			providers.push_back(new Providers::CurrentDirectoryProvider(sm));
-			providers.push_back(new Providers::PackageRepositoryProvider(sm));
+			providers.push_back(new Providers::PackageRepositoryProvider(sm, depMan));
 		}
 
 		RequireManager::~RequireManager(void)
@@ -22,7 +22,7 @@ namespace SMV8
 			}
 		}
 
-		string RequireManager::Require(const string& requirer, const string& path) const
+		string RequireManager::Require(const SMV8Script& requirer, const string& path) const
 		{
 			for(IRequireProvider *provider: providers)
 			{

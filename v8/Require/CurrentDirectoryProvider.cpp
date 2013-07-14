@@ -19,25 +19,32 @@ namespace SMV8
 			{
 			}
 
-			bool CurrentDirectoryProvider::Provides(const SMV8Script& requirer, const string& path) const
+			std::string CurrentDirectoryProvider::ResolvePath(const SMV8Script& requirer, const string& path) const
 			{
-				string requirer_dir = requirer.substr(0,requirer.find_last_of('/') + 1);
+				string reqpath = requirer.GetPath();
+				string requirer_dir = reqpath.substr(0,reqpath.find_last_of('/') + 1);
 
 				char fullpath[PLATFORM_MAX_PATH];
 				sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), (string("v8/") + requirer_dir + path).c_str());
 
-				ifstream ifs(fullpath);
-				return ifs;
+				return fullpath;
+			}
+
+			bool CurrentDirectoryProvider::Provides(const SMV8Script& requirer, const string& path) const
+			{
+				ifstream ifs(ResolvePath(requirer, path));
+				return ifs.is_open();
 			}
 			
 			string CurrentDirectoryProvider::Require(const SMV8Script& requirer, const string& path) const
 			{
-				string requirer_dir = requirer.substr(0,requirer.find_last_of('/') + 1);
+				string fullpath = ResolvePath(requirer, path);
 
-				char fullpath[PLATFORM_MAX_PATH];
-				sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), (string("v8/") + requirer_dir + path).c_str());
+				ifstream ifs(ResolvePath(requirer, path));
+				if(!ifs.is_open())
+					throw logic_error("Can't open required path " + path + ". This should not happen.");
 
-				return string(fullpath);
+				return fullpath;
 			}
 
 			std::string CurrentDirectoryProvider::GetName() const

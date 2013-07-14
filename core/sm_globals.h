@@ -40,7 +40,7 @@
 #include <sp_vm_api.h>
 #include "sm_platform.h"
 #include <IShareSys.h>
-#include <v8/V8Manager.h>
+#include <v8/IV8Manager.h>
 
 using namespace SourcePawn;
 using namespace SourceMod;

@@ -20,6 +20,7 @@ namespace SMV8
 				virtual std::string Require(const SMV8Script& requirer, const std::string& path) const;
 				std::string GetName() const;
 			private:
+				std::string ResolvePath(const SMV8Script& requirer, const std::string& path) const;
 				ISourceMod *sm;
 			};
 		}

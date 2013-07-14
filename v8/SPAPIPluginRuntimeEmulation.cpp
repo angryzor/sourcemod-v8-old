@@ -29,8 +29,8 @@ namespace SMV8
 			cell_t url;
 		};
 
-		PluginRuntime::PluginRuntime(Isolate* isolate, std::string code)
-			: pauseState(false), isolate(isolate), ctx(this)
+		PluginRuntime::PluginRuntime(Isolate* isolate, Require::RequireManager *reqMan, SMV8Script plugin_script)
+			: pauseState(false), isolate(isolate), ctx(this), plugin_script(plugin_script), reqMan(reqMan)
 		{
 			HandleScope handle_scope(isolate);
 
@@ -40,7 +40,7 @@ namespace SMV8
 
 			Context::Scope context_scope(ourContext);
 
-			Handle<Script> script = Script::Compile(String::New(code.c_str()));
+			Handle<Script> script = Script::Compile(String::New(plugin_script.GetCode().c_str()));
 			script->Run();
 
 			ExtractPluginInfo();
@@ -203,6 +203,13 @@ namespace SMV8
 			return NativeParamInfo(*nameAscii, (CellType)type->Value());
 		}
 */
+
+		void PluginRuntime::Require(const FunctionCallbackInfo<Value>& info)
+		{
+			PluginRuntime* self = (PluginRuntime*)info.Data().As<External>()->Value();
+			self->reqMan->Require(self->plugin_script, *String::AsciiValue(info[0].As<String>()));
+		}
+
 		Handle<Value> PluginRuntime::CallV8Function(funcid_t funcid, int argc, Handle<Value> argv[])
 		{
 			HandleScope handle_scope(isolate);

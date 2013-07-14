@@ -36,5 +36,6 @@ namespace SMV8
 		std::string CompileCoffee(const std::string& coffee) const;
 		Persistent<Context> coffeeCompilerContext;
 		Isolate *isolate;
+		ISourceMod *sm;
 	};
 }

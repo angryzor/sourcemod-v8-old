@@ -4,6 +4,7 @@
 #include "IRequireProvider.h"
 #include "ISourceMod.h"
 #include "ILibrarySys.h"
+#include "../DependencyManager.h"
 #include <vector>
 
 namespace SMV8
@@ -15,9 +16,9 @@ namespace SMV8
 		class RequireManager
 		{
 		public:
-			RequireManager(ISourceMod *sm, ILibrarySys *libsys);
+			RequireManager(ISourceMod *sm, ILibrarySys *libsys, DependencyManager *depMan);
 			virtual ~RequireManager(void);
-			string Require(const string& requirer, const string& path) const;
+			string Require(const SMV8Script& requirer, const string& path) const;
 		private:
 			vector<IRequireProvider *> providers;
 			ISourceMod *sm;

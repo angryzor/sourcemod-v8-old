@@ -21,11 +21,8 @@
     <Filter Include="Source Files\Require">
       <UniqueIdentifier>{f1687a74-1628-47f4-864b-c660460387c8}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Dependencies">
-      <UniqueIdentifier>{7be4066a-5316-4bf1-b5b0-cadf28e3261f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Dependencies">
-      <UniqueIdentifier>{cb7d116d-86aa-4284-aa1a-82a1673aff5b}</UniqueIdentifier>
+    <Filter Include="Header Files\Public">
+      <UniqueIdentifier>{d9462ed7-d61d-4f9e-96e5-6d616f5dfa70}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -59,10 +56,10 @@
     <ClCompile Include="..\Require\RequireManager.cpp">
       <Filter>Source Files\Require</Filter>
     </ClCompile>
-    <ClCompile Include="..\Dependencies\DependencyManager.cpp">
-      <Filter>Source Files\Dependencies</Filter>
-    </ClCompile>
     <ClCompile Include="..\ScriptLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DependencyManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -77,9 +74,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\public\v8\SPAPIEmulation.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\public\v8\V8Manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\dll_exports.h">
@@ -97,14 +91,17 @@
     <ClInclude Include="..\Require\RequireManager.h">
       <Filter>Header Files\Require</Filter>
     </ClInclude>
-    <ClInclude Include="..\Dependencies\DependencyManager.h">
-      <Filter>Header Files\Dependencies</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Dependencies\IPackageSource.h">
-      <Filter>Header Files\Dependencies</Filter>
-    </ClInclude>
     <ClInclude Include="..\ScriptLoader.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DependencyManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\V8Manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\public\v8\IV8Manager.h">
+      <Filter>Header Files\Public</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

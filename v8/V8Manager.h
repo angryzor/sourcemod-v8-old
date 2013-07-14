@@ -1,26 +1,13 @@
-#ifndef _INCLUDE_V8_V8MANAGER_H_
-#define _INCLUDE_V8_V8MANAGER_H_
-
-#include <v8.h>
-
-#include <ISourceMod.h>
-#include <sp_vm_api.h>
-#include <string>
+#pragma once
+#include <IV8Manager.h>
 #include "ScriptLoader.h"
 #include "DependencyManager.h"
-#include <ILibrarySys.h>
+#include "Require/RequireManager.h"
 
 namespace SMV8
 {
 	using namespace v8;
 	using namespace SourceMod;
-
-	class IManager
-	{
-	public:
-		virtual void Initialize(ISourceMod *sm, ILibrarySys *libsys) = 0;
-		virtual SourcePawn::IPluginRuntime *LoadPlugin(char* location) = 0;
-	};
 
 	class Manager : public IManager
 	{
@@ -33,10 +20,8 @@ namespace SMV8
 	private:
 		Isolate *isolate;
 		ScriptLoader *scriptLoader;
+		ISourceMod *sm;
 		DependencyManager *depMan;
+		Require::RequireManager *reqMan;
 	};
 }
-
-typedef SMV8::IManager* (*GET_V8)();
-
-#endif // !defined _INCLUDE_V8_V8MANAGER_H_
