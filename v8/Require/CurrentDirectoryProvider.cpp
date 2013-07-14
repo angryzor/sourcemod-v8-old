@@ -10,7 +10,8 @@ namespace SMV8
 		{
 			using namespace SourceMod;
 			using namespace std;
-			CurrentDirectoryProvider::CurrentDirectoryProvider(ISourceMod *sm) : sm(sm)
+			CurrentDirectoryProvider::CurrentDirectoryProvider(ISourceMod *sm)
+				: sm(sm)
 			{
 			}
 
@@ -18,7 +19,7 @@ namespace SMV8
 			{
 			}
 
-			bool CurrentDirectoryProvider::Provides(const string& requirer, const string& path) const
+			bool CurrentDirectoryProvider::Provides(const SMV8Script& requirer, const string& path) const
 			{
 				string requirer_dir = requirer.substr(0,requirer.find_last_of('/') + 1);
 
@@ -29,7 +30,7 @@ namespace SMV8
 				return ifs;
 			}
 			
-			string CurrentDirectoryProvider::Require(const string& requirer, const string& path) const
+			string CurrentDirectoryProvider::Require(const SMV8Script& requirer, const string& path) const
 			{
 				string requirer_dir = requirer.substr(0,requirer.find_last_of('/') + 1);
 

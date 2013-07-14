@@ -16,8 +16,8 @@ namespace SMV8
 			public:
 				CurrentDirectoryProvider(ISourceMod *sm);
 				virtual ~CurrentDirectoryProvider(void);
-				virtual bool Provides(const std::string& requirer, const std::string& path) const;
-				virtual std::string Require(const std::string& requirer, const std::string& path) const;
+				virtual bool Provides(const SMV8Script& requirer, const std::string& path) const;
+				virtual std::string Require(const SMV8Script& requirer, const std::string& path) const;
 				std::string GetName() const;
 			private:
 				ISourceMod *sm;

@@ -1,6 +1,8 @@
 #ifndef _INCLUDE_V8_DEPENDENCYPROVIDER_H_
 #define _INCLUDE_V8_DEPENDENCYPROVIDER_H_
 
+#include "../ScriptLoader.h"
+
 #include <string>
 
 namespace SMV8
@@ -10,8 +12,8 @@ namespace SMV8
 		class IRequireProvider
 		{
 		public:
-			virtual bool Provides(const std::string& requirer, const std::string& path) const = 0;
-			virtual std::string Require(const std::string& requirer, const std::string& path) const = 0;
+			virtual bool Provides(const SMV8Script& requirer, const std::string& path) const = 0;
+			virtual std::string Require(const SMV8Script& requirer, const std::string& path) const = 0;
 			virtual std::string GetName() const = 0;
 		};
 	}

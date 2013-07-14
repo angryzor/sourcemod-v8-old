@@ -6,6 +6,9 @@
 #include <ISourceMod.h>
 #include <sp_vm_api.h>
 #include <string>
+#include "ScriptLoader.h"
+#include "DependencyManager.h"
+#include <ILibrarySys.h>
 
 namespace SMV8
 {
@@ -15,7 +18,7 @@ namespace SMV8
 	class IManager
 	{
 	public:
-		virtual void Initialize(ISourceMod *sm) = 0;
+		virtual void Initialize(ISourceMod *sm, ILibrarySys *libsys) = 0;
 		virtual SourcePawn::IPluginRuntime *LoadPlugin(char* location) = 0;
 	};
 
@@ -23,16 +26,15 @@ namespace SMV8
 	{
 	public:
 		Manager();
-		virtual void Initialize(ISourceMod *sm);
+		virtual void Initialize(ISourceMod *sm, ILibrarySys *libsys);
 		virtual SourcePawn::IPluginRuntime *LoadPlugin(char* location);
+		SourcePawn::IPluginRuntime *LoadPakPlugin(const string& package_name);
 		virtual ~Manager(void);
 	private:
-		void LoadCoffeeCompiler(ISourceMod *sm);
-		std::string CompileCoffee(const std::string& coffee) const;
-		Persistent<Context> coffeeCompilerContext;
 		Isolate *isolate;
+		ScriptLoader *scriptLoader;
+		DependencyManager *depMan;
 	};
-
 }
 
 typedef SMV8::IManager* (*GET_V8)();

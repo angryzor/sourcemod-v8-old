@@ -1,7 +1,5 @@
 #include "V8Manager.h"
-#include <sm_platform.h>
-#include <fstream>
-#include <sstream>
+
 #include "SPAPIEmulation.h"
 
 
@@ -15,74 +13,48 @@ namespace SMV8
 	{
 	}
 
-	void Manager::Initialize(ISourceMod *sm)
+	void Manager::Initialize(ISourceMod *sm, ILibrarySys *libsys)
 	{
 		isolate = Isolate::GetCurrent();
 		HandleScope handle_scope(isolate);
-		coffeeCompilerContext.Reset(isolate, Context::New(isolate));
-		LoadCoffeeCompiler(sm);
+		scriptLoader = new ScriptLoader(isolate, sm);
+		depMan = new DependencyManager(isolate, sm, libsys, scriptLoader);
 	}
 
-	void Manager::LoadCoffeeCompiler(ISourceMod *sm)
-	{
-		HandleScope handle_scope(isolate);
-
-		char fullpath[PLATFORM_MAX_PATH];
-		sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), "v8/coffee_compiler.js");
-
-		ifstream ifs(fullpath);
-		if(!ifs.is_open())
-			throw runtime_error("CoffeeScript compiler not found.");
-
-		ostringstream oss;
-		oss << ifs.rdbuf();
-
-		Handle<Context> context = Handle<Context>::New(isolate, coffeeCompilerContext);
-		Context::Scope context_scope(context);
-
-		Handle<Script> coffeeCompiler = Script::Compile(String::New(oss.str().c_str()));
-		coffeeCompiler->Run();
-	}
-
-	std::string Manager::CompileCoffee(const std::string& coffee) const
-	{
-		HandleScope handle_scope(isolate);
-
-		Handle<Context> context = Handle<Context>::New(isolate, coffeeCompilerContext);
-		Context::Scope context_scope(context);
-
-		Handle<Object> coffeescript = context->Global()->Get(String::New("CoffeeScript")).As<Object>();
-
-		const int argc = 1;
-		Handle<Value> argv[argc] = { String::New(coffee.c_str()) };
-
-		Handle<Value> result = coffeescript->Get(String::New("compile")).As<Function>()->Call(coffeescript, argc, argv);
-		String::Utf8Value jsutf8(result.As<String>());
-		return *jsutf8;
-	}
 
 	SourcePawn::IPluginRuntime *Manager::LoadPlugin(char* location)
 	{
-		std::string slocation(location);
-		ifstream ifs(slocation);
-		if(!ifs.is_open())
-			throw runtime_error("Plugin can't be loaded");
+		string slocation(location);
 
-		ostringstream oss;
-		oss << ifs.rdbuf();
+		auto pakPluginLoc = slocation.find(".pakplugin", slocation.size() - 10);
 
-		std::string code(oss.str());
+		if(pakPluginLoc != string::npos)
+		{
+			auto afterSlash = slocation.find_last_of("/") + 1;
+			return LoadPakPlugin(slocation.substr(afterSlash, slocation.find(".coffee",pakPluginLoc - afterSlash)));	
+		}
 
-		if(slocation.find(".coffee", slocation.size() - 7) != string::npos)
-			code = CompileCoffee(code);
+		return new SPEmulation::PluginRuntime(isolate, scriptLoader->LoadScript(slocation));
+	}
 
-		SourcePawn::IPluginRuntime *plugin = new SPEmulation::PluginRuntime(isolate, code);
+	SourcePawn::IPluginRuntime *Manager::LoadPakPlugin(const string& package_name)
+	{
+		try
+		{
+			depMan->Depend(package_name, ">= 0");
+			string script_path = string("v8/packages/") + depMan->ResolvePath("__depend__",package_name) + "/main";
 
-		return plugin;
+			return new SPEmulation::PluginRuntime(isolate, scriptLoader->AutoLoadScript(script_path));
+		}
+		catch(runtime_error& err)
+		{
+			throw runtime_error("Can't load package-based plugin: " + string(err.what()));
+		}
 	}
 
 	Manager::~Manager(void)
 	{
-		coffeeCompilerContext.Dispose();
+		delete depMan;
+		delete scriptLoader;
 	}
 }

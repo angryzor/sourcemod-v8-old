@@ -1,6 +1,7 @@
 #pragma once
 
 #include "IRequireProvider.h"
+#include "..\DependencyManager.h"
 #include <ISourceMod.h>
 
 namespace SMV8
@@ -13,14 +14,15 @@ namespace SMV8
 			class PackageRepositoryProvider : public IRequireProvider
 			{
 			public:
-				PackageRepositoryProvider(ISourceMod *sm);
+				PackageRepositoryProvider(ISourceMod *sm, DependencyManager *depMan);
 				virtual ~PackageRepositoryProvider(void);
-				virtual bool Provides(const std::string& requirer, const std::string& path) const;
-				virtual std::string Require(const std::string& requirer, const std::string& path) const;
+				virtual bool Provides(const SMV8Script& requirer, const std::string& path) const;
+				virtual std::string Require(const SMV8Script& requirer, const std::string& path) const;
 				std::string GetName() const;
 			private:
+				std::string ResolvePath(const SMV8Script& requirer, const string& path) const;
 				ISourceMod *sm;
-				std::string directory;
+				DependencyManager *depMan;
 			};
 		}
 	}

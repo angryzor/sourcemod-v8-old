@@ -1,0 +1,153 @@
+#include "DependencyManager.h"
+#include <sm_platform.h>
+#include <fstream>
+#include <sstream>
+#include <ILibrarySys.h>
+
+namespace SMV8
+{
+	using namespace std;
+	using namespace SourceMod;
+	using namespace v8;
+
+	const std::string DependencyManager::packages_root("v8/packages");
+
+	DependencyManager::DependencyManager(Isolate *isolate, ISourceMod *sm, ILibrarySys *libsys, ScriptLoader* scriptLoader)
+		: isolate(isolate), sm(sm), libsys(libsys), scriptLoader(scriptLoader)
+	{
+		char fullpath[PLATFORM_MAX_PATH];
+		sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), "v8/support/pkgman.coffee");
+		string pkgman = scriptLoader->LoadScript(fullpath);
+
+		HandleScope handle_scope(isolate);
+		Handle<Context> context = Context::New(isolate, NULL, BuildGlobalObjectTemplate());
+		depman_context.Reset(isolate, context);
+		Context::Scope context_scope(context);
+		Script::Compile(String::New(pkgman.c_str()))->Run();
+	}
+
+	DependencyManager::~DependencyManager()
+	{
+		jsDepMan.Dispose();
+		depman_context.Dispose();
+	}
+
+	void DependencyManager::LoadDependencies(const string& package_path)
+	{
+		HandleScope handle_scope(isolate);
+
+		Local<Context> context = Handle<Context>::New(isolate,depman_context);
+		Context::Scope context_scope(context);
+
+		Local<Object> depMan = Handle<Object>::New(isolate, jsDepMan);
+
+		const unsigned int argc = 1;
+		Handle<Value> argv[argc] = {String::New(package_path.c_str())};
+		depMan->Get(String::New("loadDependencies")).As<Function>()->Call(depMan, argc, argv);
+	}
+
+	string DependencyManager::ResolvePath(const string& source_pkg, const string& require_path)
+	{
+		HandleScope handle_scope(isolate);
+
+		Local<Context> context = Handle<Context>::New(isolate,depman_context);
+		Context::Scope context_scope(context);
+
+		Local<Object> depMan = Handle<Object>::New(isolate, jsDepMan);
+
+		const unsigned int argc = 2;
+		Handle<Value> argv[argc] = {String::New(source_pkg.c_str()), String::New(require_path.c_str())};
+		Handle<String> result = depMan->Get(String::New("resolvePath")).As<Function>()->Call(depMan, argc, argv);
+
+		return *String::AsciiValue(result);
+	}
+
+	void DependencyManager::Depend(const string& pkg, const string& restriction)
+	{
+		HandleScope handle_scope(isolate);
+
+		Local<Context> context = Handle<Context>::New(isolate,depman_context);
+		Context::Scope context_scope(context);
+
+		Local<Object> depMan = Handle<Object>::New(isolate, jsDepMan);
+
+		const unsigned int argc = 2;
+		Handle<Value> argv[argc] = {String::New(pkg.c_str()), String::New(restriction.c_str())};
+
+		TryCatch trycatch;
+		Handle<String> result = depMan->Get(String::New("depend")).As<Function>()->Call(depMan, argc, argv);
+
+		if(result.IsEmpty())
+		{
+			Handle<Value> err = trycatch.Exception();
+			string exceptionStr = *String::AsciiValue(err);
+
+			throw runtime_error(exceptionStr);
+		}
+	}
+
+	Handle<ObjectTemplate> DependencyManager::BuildGlobalObjectTemplate()
+	{
+		HandleScope handle_scope(isolate);
+		Handle<ObjectTemplate> externals = ObjectTemplate::New();
+		externals->Set("readPakfile",FunctionTemplate::New(&ext_readPakfile,External::New(this)));
+		externals->Set("findLocalVersions",FunctionTemplate::New(&ext_findLocalVersions,External::New(this)));
+		Handle<ObjectTemplate> gt = ObjectTemplate::New();
+		gt->Set("externals", externals);
+		handle_scope.Close(gt);
+	}
+
+	Handle<Value> DependencyManager::ext_readPakfile(const Arguments& args)
+	{
+		DependencyManager *self = (DependencyManager *)args.Data().As<External>()->Value();
+		string package = *String::AsciiValue(args[0].As<String>());
+		string pkgfile = self->packages_root + package + "/Pkgfile";
+
+		char fullpath[PLATFORM_MAX_PATH];
+		self->sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), pkgfile.c_str());
+			
+		self->scriptLoader->LoadScript(fullpath, true);
+	}
+
+	Handle<Value> DependencyManager::ext_findLocalVersions(const Arguments& args)
+	{
+		HandleScope handle_scope(args.GetIsolate());
+		DependencyManager *self = (DependencyManager *)args.Data().As<External>()->Value();
+		string package = *String::AsciiValue(args[0].As<String>());
+		string packageDir = self->packages_root + package;
+		char pkgCollectionPath[PLATFORM_MAX_PATH];
+
+		self->sm->BuildPath(Path_SM, pkgCollectionPath, sizeof(pkgCollectionPath), packageDir.c_str());
+
+		Handle<Array> res = Array::New();
+
+		if(!self->libsys->PathExists(pkgCollectionPath) || !self->libsys->IsPathDirectory(pkgCollectionPath))
+			return handle_scope.Close(res);
+
+		IDirectory *pkgCollectionDir = self->libsys->OpenDirectory(pkgCollectionPath);
+		unsigned int i = 0;
+		while(pkgCollectionDir->MoreFiles())
+		{
+			if(pkgCollectionDir->IsEntryDirectory())
+			{
+				res->Set(i++, String::New(pkgCollectionDir->GetEntryName()));
+			}
+
+			pkgCollectionDir->NextEntry();
+		}
+		self->libsys->CloseDirectory(pkgCollectionDir);
+
+		return handle_scope.Close(res);
+	}
+
+	void DependencyManager::ParseManifest(const string& code)
+	{
+		HandleScope handle_scope(isolate);
+		Handle<ObjectTemplate> global = Handle<ObjectTemplate>::New(isolate, global_template);
+		Handle<Context> context = Context::New(isolate, NULL, global);
+		Context::Scope context_scope(context);
+
+		Handle<Script> script = Script::Compile(String::New(code.c_str()));
+		script->Run();
+	}
+}

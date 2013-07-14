@@ -176,7 +176,7 @@
 		installBestSatisfier: (requirement) ->
 			version = @bestSatisfier(requirement)
 			@source.install(@pkg,version.version)
-			"#{@pkg}-#{version.version}"
+			"#{@pkg}/#{version.version}"
 
 		PkgProvider.bestOfProviders = (providers, requirement) ->
 			return null if providers.length == 0
@@ -234,6 +234,8 @@
 		loadDependencies = (pkg) ->
 			currentPkg = pkg
 
+			return if pkgAliases[subpkg]?
+
 			pakfile = externals.readPakfile(currentPkg)
 
 			pkgAliases[currentPkg] = {}
@@ -242,19 +244,31 @@
 			global.parsePakfile(pakfile,pakfileExposed.dep)
 
 			subpkgs = (subpkgdir for own subpkg, subpkgdir of pkgAliases[currentPkg])
-			loadDependencies(subpkg) for subpkg in subpkgs when not pkgAliases[subpkg]?
+			loadDependencies(subpkg) for subpkg in subpkgs
 
 		getPkgAliases = (pkg) ->
 			pkgAliases[pkg]
 
-		getPkgAlias = (pkg, alias) ->
-			getPkgAliases(pkg)[alias]
+		resolvePath = (pkg, path) ->
+			firstSlash = path.indexOf("/")
+			alias = path.substring(0, firstSlash)
+			getPkgAliases(pkg)[alias] + path.substring(firstSlash + 1)
+
+		depend = (pkg, requirement) ->
+			currentPkg = "__depend__"
+			pkgAliases[currentPkg] = {}
+
+			pakfileExposed.dep(pkg,requirement)
+
+			subpkgs = (subpkgdir for own subpkg, subpkgdir of pkgAliases[currentPkg])
+			loadDependencies(subpkg) for subpkg in subpkgs
 
 		@dependencyManager =
 			addRemoteSource: addRemoteSource
 			loadDependencies: loadDependencies
 			getPkgAliases: getPkgAliases
-			getPkgAlias: getPkgAlias
+			resolvePath: resolvePath
+			depend: depend
 	).call(@)
 ).call(@)
 

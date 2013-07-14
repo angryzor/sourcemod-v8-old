@@ -90,6 +90,7 @@
     <ClCompile Include="..\Require\CurrentDirectoryProvider.cpp" />
     <ClCompile Include="..\Require\PackageRepositoryProvider.cpp" />
     <ClCompile Include="..\Require\RequireManager.cpp" />
+    <ClCompile Include="..\ScriptLoader.cpp" />
     <ClCompile Include="..\SPAPIPluginFunctionEmulation.cpp" />
     <ClCompile Include="..\SPAPIPluginContextEmulation.cpp" />
     <ClCompile Include="..\SPAPIPluginRuntimeEmulation.cpp" />
@@ -111,6 +112,7 @@
     <ClInclude Include="..\Require\IRequireProvider.h" />
     <ClInclude Include="..\Require\PackageRepositoryProvider.h" />
     <ClInclude Include="..\Require\RequireManager.h" />
+    <ClInclude Include="..\ScriptLoader.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
