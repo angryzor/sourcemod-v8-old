@@ -29,8 +29,8 @@ namespace SMV8
 			cell_t url;
 		};
 
-		PluginRuntime::PluginRuntime(Isolate* isolate, Require::RequireManager *reqMan, SMV8Script plugin_script)
-			: pauseState(false), isolate(isolate), ctx(this), plugin_script(plugin_script), reqMan(reqMan)
+		PluginRuntime::PluginRuntime(Isolate* isolate, Require::RequireManager *reqMan, ScriptLoader *script_loader, SMV8Script plugin_script)
+			: pauseState(false), isolate(isolate), ctx(this), plugin_script(plugin_script), reqMan(reqMan), script_loader(script_loader)
 		{
 			HandleScope handle_scope(isolate);
 
@@ -73,6 +73,7 @@ namespace SMV8
 			global->Set("natives",GenerateNativesObjectTemplate());
 			global->Set("plugin",GeneratePluginObjectTemplate());
 			global->Set("forwards",ObjectTemplate::New());
+			global->Set("require", FunctionTemplate::New(&Require, External::New(this)));
 			return handle_scope.Close(global);
 		}
 
@@ -207,7 +208,11 @@ namespace SMV8
 		void PluginRuntime::Require(const FunctionCallbackInfo<Value>& info)
 		{
 			PluginRuntime* self = (PluginRuntime*)info.Data().As<External>()->Value();
-			self->reqMan->Require(self->plugin_script, *String::AsciiValue(info[0].As<String>()));
+			SMV8Script s = self->script_loader->AutoLoadScript(self->reqMan->Require(self->plugin_script, *String::AsciiValue(info[0].As<String>())));
+
+			string adjusted_code = "var " + s.GetPackage() + " = {}; (function(){ " + s.GetCode() + " }).call(" + s.GetPackage() + ");";
+
+			Script::Compile(String::New(adjusted_code.c_str()))->Run();
 		}
 
 		Handle<Value> PluginRuntime::CallV8Function(funcid_t funcid, int argc, Handle<Value> argv[])

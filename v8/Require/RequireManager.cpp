@@ -7,11 +7,11 @@ namespace SMV8
 	namespace Require
 	{
 		using namespace std;
-		RequireManager::RequireManager(ISourceMod *sm, ILibrarySys *libsys, DependencyManager *depMan)
+		RequireManager::RequireManager(ISourceMod *sm, ILibrarySys *libsys, DependencyManager *depMan, ScriptLoader *script_loader)
 			: sm(sm), libsys(libsys)
 		{
-			providers.push_back(new Providers::CurrentDirectoryProvider(sm));
-			providers.push_back(new Providers::PackageRepositoryProvider(sm, depMan));
+			providers.push_back(new Providers::CurrentDirectoryProvider(sm, script_loader));
+			providers.push_back(new Providers::PackageRepositoryProvider(sm, script_loader, depMan));
 		}
 
 		RequireManager::~RequireManager(void)
@@ -26,14 +26,10 @@ namespace SMV8
 		{
 			for(IRequireProvider *provider: providers)
 			{
-				if(provider->Provides(requirer, path + ".coffee"))
-					return provider->Require(requirer, path + ".coffee");
-				if(provider->Provides(requirer, path + ".js"))
-					return provider->Require(requirer, path + ".js");
-				if(provider->Provides(requirer, path + "/main.coffee"))
-					return provider->Require(requirer, path + "/main.coffee");
-				if(provider->Provides(requirer, path + "/main.js"))
-					return provider->Require(requirer, path + "/main.js");
+				if(provider->Provides(requirer, path))
+					return provider->Require(requirer, path);
+				if(provider->Provides(requirer, path + "/main"))
+					return provider->Require(requirer, path + "/main");
 			}
 
 			throw runtime_error("Dependency error: cannot resolve dependency '" + path + "'");

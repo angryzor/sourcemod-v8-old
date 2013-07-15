@@ -234,11 +234,12 @@
 		loadDependencies = (pkg) ->
 			currentPkg = pkg
 
-			return if pkgAliases[subpkg]?
+			return if pkgAliases[currentPkg]?
 
 			pakfile = externals.readPakfile(currentPkg)
 
 			pkgAliases[currentPkg] = {}
+			pkgAliases[currentPkg][pkg.split("/")[0]] = pkg
 
 			# Call the sandboxed pakfile environment, pass our public functions
 			global.parsePakfile(pakfile,pakfileExposed.dep)
@@ -253,7 +254,7 @@
 			firstSlash = path.indexOf("/")
 			firstSlash = path.length if firstSlash == -1
 			alias = path.substring(0, firstSlash)
-			getPkgAliases(pkg)[alias] + path.substring(firstSlash + 1)
+			getPkgAliases(pkg)[alias] + path.substring(firstSlash)
 
 		depend = (depender, pkg, requirement) ->
 			currentPkg = depender

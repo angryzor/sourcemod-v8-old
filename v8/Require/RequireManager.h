@@ -16,7 +16,7 @@ namespace SMV8
 		class RequireManager
 		{
 		public:
-			RequireManager(ISourceMod *sm, ILibrarySys *libsys, DependencyManager *depMan);
+			RequireManager(ISourceMod *sm, ILibrarySys *libsys, DependencyManager *depMan, ScriptLoader *script_loader);
 			virtual ~RequireManager(void);
 			string Require(const SMV8Script& requirer, const string& path) const;
 		private:

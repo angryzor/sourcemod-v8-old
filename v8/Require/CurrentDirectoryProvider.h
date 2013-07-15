@@ -14,7 +14,7 @@ namespace SMV8
 			class CurrentDirectoryProvider : public IRequireProvider
 			{
 			public:
-				CurrentDirectoryProvider(ISourceMod *sm);
+				CurrentDirectoryProvider(ISourceMod *sm, ScriptLoader *script_loader);
 				virtual ~CurrentDirectoryProvider(void);
 				virtual bool Provides(const SMV8Script& requirer, const std::string& path) const;
 				virtual std::string Require(const SMV8Script& requirer, const std::string& path) const;
@@ -22,6 +22,7 @@ namespace SMV8
 			private:
 				std::string ResolvePath(const SMV8Script& requirer, const std::string& path) const;
 				ISourceMod *sm;
+				ScriptLoader *script_loader;
 			};
 		}
 	}

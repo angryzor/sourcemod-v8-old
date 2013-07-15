@@ -49,6 +49,8 @@ namespace SMV8
 				PushInt(val.As<Integer>(), param_dst);
 			else if(val->IsNumber())
 				PushFloat(val.As<Number>(), param_dst);
+			else if(val->IsBoolean())
+				PushBool(val.As<Boolean>(), param_dst);
 			else if(val->IsArray() || val->IsString())
 				PushByRef(WrapInDummyObject(val), param_dst, forcefloat);
 			else 
@@ -110,6 +112,11 @@ namespace SMV8
 			*param_dst = sp_ftoc(fNumb);
 		}
 
+		void V8ToSPMarshaller::PushBool(Handle<Boolean> val, cell_t* param_dst)
+		{
+			*param_dst = static_cast<cell_t>(val->Value());
+		}
+
 		void V8ToSPMarshaller::PushArray(Handle<Array> val, Handle<Object> refObj, cell_t* param_dst, bool forcefloat)
 		{
 			size_t cells_required = val->Length();
@@ -163,9 +170,15 @@ namespace SMV8
 
 		Handle<Value> V8ToSPMarshaller::GetResult(cell_t result)
 		{
-			return native.resultType == FLOAT ?
-			       Number::New(sp_ctof(result)) :
-			       Integer::New(result);
+			switch(native.resultType)
+			{
+			case INT:
+				return Integer::New(result);
+			case FLOAT:
+				return Number::New(sp_ctof(result));
+			case BOOL:
+				return Boolean::New(result);
+			}
 		}
 
 		void V8ToSPMarshaller::CopyBackRefs()

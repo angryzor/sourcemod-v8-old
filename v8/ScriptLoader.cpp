@@ -86,14 +86,14 @@ namespace SMV8
 		if(ifs.is_open())
 		{
 			content << ifs.rdbuf();
-			return SMV8Script(CompileCoffee(content.str()), sfullpath);
+			return SMV8Script(CompileCoffee(content.str()), location);
 		}
 
 		ifs.open(sfullpath + ".js");
 		if(ifs.is_open())
 		{
 			content << ifs.rdbuf();
-			return SMV8Script(content.str(), sfullpath);
+			return SMV8Script(content.str(), location);
 		}
 
 		throw runtime_error("Script can't be loaded: " + sfullpath);
@@ -113,9 +113,9 @@ namespace SMV8
 		oss << ifs.rdbuf();
 
 		if(forceCoffee || sfullpath.find(".coffee", sfullpath.size() - 7) != string::npos)
-			return SMV8Script(CompileCoffee(oss.str()), sfullpath);	
+			return SMV8Script(CompileCoffee(oss.str()), location);	
 
-		return SMV8Script(oss.str(), sfullpath);
+		return SMV8Script(oss.str(), location);
 	}
 
 	void ScriptLoader::LoadCoffeeCompiler(ISourceMod *sm)
@@ -154,5 +154,36 @@ namespace SMV8
 		Handle<Value> result = coffeescript->Get(String::New("compile")).As<Function>()->Call(coffeescript, argc, argv);
 		String::Utf8Value jsutf8(result.As<String>());
 		return *jsutf8;
+	}
+
+	// TODO: also check extensions
+	bool ScriptLoader::CanLoad(const std::string& location) const
+	{
+		char fullpath[PLATFORM_MAX_PATH];
+		sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), location.c_str());
+		string sfullpath(fullpath);
+
+		ifstream ifs(fullpath);
+		return ifs.is_open();
+	}
+
+	// TODO: also check extensions
+	bool ScriptLoader::CanAutoLoad(const std::string& location) const
+	{
+		char fullpath[PLATFORM_MAX_PATH];
+		sm->BuildPath(Path_SM, fullpath, sizeof(fullpath), location.c_str());
+		string sfullpath(fullpath);
+
+		ifstream ifs(sfullpath + ".coffee");
+		ostringstream content;
+
+		if(ifs.is_open())
+			return true;
+
+		ifs.open(sfullpath + ".js");
+		if(ifs.is_open())
+			return true;
+
+		return false;
 	}
 }

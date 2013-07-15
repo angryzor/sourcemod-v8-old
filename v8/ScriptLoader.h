@@ -31,6 +31,8 @@ namespace SMV8
 		virtual ~ScriptLoader();
 		SMV8Script AutoLoadScript(const std::string& location) const;
 		SMV8Script LoadScript(const std::string& location, bool forceCoffee=false) const;
+		bool ScriptLoader::CanLoad(const std::string& location) const;
+		bool ScriptLoader::CanAutoLoad(const std::string& location) const;
 	private:
 		void LoadCoffeeCompiler(ISourceMod *sm);
 		std::string CompileCoffee(const std::string& coffee) const;

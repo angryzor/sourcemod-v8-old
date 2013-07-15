@@ -19,11 +19,13 @@ namespace SMV8
 		{
 			INT = 0,
 			FLOAT = 1,
-			INTBYREF = 2,
-			FLOATBYREF = 3,
-			ARRAY = 4,
-			STRING = 5,
-			VARARG = 6
+			BOOL = 2,
+			INTBYREF = 3,
+			FLOATBYREF = 4,
+			BOOLBYREF = 5,
+			ARRAY = 6,
+			STRING = 7,
+			VARARG = 8
 		};
 
 		class PluginRuntime;
@@ -203,7 +205,7 @@ namespace SMV8
 		{
 			friend class PluginFunction;
 		public:
-			PluginRuntime(Isolate* isolate, Require::RequireManager *reqMan, SMV8Script plugin_script);
+			PluginRuntime(Isolate* isolate, Require::RequireManager *reqMan, ScriptLoader *script_loader, SMV8Script plugin_script);
 			virtual ~PluginRuntime();
 			virtual IPluginDebugInfo *GetDebugInfo();
 			virtual int FindNativeByName(const char *name, uint32_t *index);
@@ -256,6 +258,7 @@ namespace SMV8
 			Persistent<Object> nativesObj;
 			SMV8Script plugin_script;
 			Require::RequireManager *reqMan;
+			ScriptLoader *script_loader;
 		};
 
 

@@ -14,7 +14,7 @@ namespace SMV8
 			class PackageRepositoryProvider : public IRequireProvider
 			{
 			public:
-				PackageRepositoryProvider(ISourceMod *sm, DependencyManager *depMan);
+				PackageRepositoryProvider(ISourceMod *sm, ScriptLoader *script_loader, DependencyManager *depMan);
 				virtual ~PackageRepositoryProvider(void);
 				virtual bool Provides(const SMV8Script& requirer, const std::string& path) const;
 				virtual std::string Require(const SMV8Script& requirer, const std::string& path) const;
@@ -23,6 +23,7 @@ namespace SMV8
 				std::string ResolvePath(const SMV8Script& requirer, const string& path) const;
 				ISourceMod *sm;
 				DependencyManager *depMan;
+				ScriptLoader *script_loader;
 			};
 		}
 	}
