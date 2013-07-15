@@ -269,8 +269,18 @@ bool SourceModBase::InitializeSourceMod(char *error, size_t maxlength, bool late
 		return false;
 	}
 
+	const char* err;
 	g_pV8 = getv8();
-	g_pV8->Initialize(this, &g_LibSys);
+	g_pV8->Initialize(this, &g_LibSys, &err);
+
+	if (err)
+	{
+		if (error && maxlength)
+		{
+			snprintf(error, maxlength, "Can't initialize V8 engine: ", err);
+		}
+		return false;
+	}
 
 	g_pSourcePawn2->SetDebugListener(logicore.debugger);
 

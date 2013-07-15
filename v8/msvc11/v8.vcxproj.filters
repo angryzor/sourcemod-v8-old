@@ -26,9 +26,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\Plugin.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\V8Manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -67,15 +64,6 @@
     <None Include="ClassDiagram.cd" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\public\v8\Marshaller.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\public\v8\Plugin.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\public\v8\SPAPIEmulation.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\dll_exports.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -102,6 +90,12 @@
     </ClInclude>
     <ClInclude Include="..\..\public\v8\IV8Manager.h">
       <Filter>Header Files\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Marshaller.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SPAPIEmulation.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

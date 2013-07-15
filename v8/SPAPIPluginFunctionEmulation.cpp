@@ -176,11 +176,17 @@ namespace SMV8
 			if(res.IsEmpty()) 
 			{  
 				Handle<Value> exception = trycatch.Exception();
+				Handle<Value> stack_trace = trycatch.StackTrace();
 				String::AsciiValue exceptionStr(exception);
 
 				std::string err = *exceptionStr;
+				if(!stack_trace.IsEmpty())
+				{
+					err += "\n";
+					err += *String::AsciiValue(stack_trace.As<String>());
+				}
 
-				// TODO: Report errors 
+				runtime.manager->ReportError(ctx, GetFunctionID(), 0, err);
 
 				Cancel();
 

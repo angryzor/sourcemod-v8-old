@@ -3,6 +3,7 @@
 #include <string>
 #include <sp_vm_function.h>
 #include "Marshaller.h"
+#include <sstream>
 
 namespace SMV8
 {
@@ -29,8 +30,8 @@ namespace SMV8
 			cell_t url;
 		};
 
-		PluginRuntime::PluginRuntime(Isolate* isolate, Require::RequireManager *reqMan, ScriptLoader *script_loader, SMV8Script plugin_script)
-			: pauseState(false), isolate(isolate), ctx(this), plugin_script(plugin_script), reqMan(reqMan), script_loader(script_loader)
+		PluginRuntime::PluginRuntime(Isolate* isolate, Manager *manager, Require::RequireManager *reqMan, ScriptLoader *script_loader, SMV8Script plugin_script)
+			: pauseState(false), isolate(isolate), ctx(this), plugin_script(plugin_script), reqMan(reqMan), script_loader(script_loader), manager(manager)
 		{
 			HandleScope handle_scope(isolate);
 
@@ -40,8 +41,25 @@ namespace SMV8
 
 			Context::Scope context_scope(ourContext);
 
-			Handle<Script> script = Script::Compile(String::New(plugin_script.GetCode().c_str()));
-			script->Run();
+			TryCatch trycatch;
+			Handle<Script> script = Script::Compile(String::New(plugin_script.GetCode().c_str()), String::New(plugin_script.GetPath().c_str()));
+			Handle<Value> res = script->Run();
+
+			if(res.IsEmpty())
+			{
+				Handle<Value> exception = trycatch.Exception();
+				Handle<Value> stack_trace = trycatch.StackTrace();
+				String::AsciiValue exceptionStr(exception);
+
+				std::string err = *exceptionStr;
+				if(!stack_trace.IsEmpty())
+				{
+					err += "\n";
+					err += *String::AsciiValue(stack_trace.As<String>());
+				}
+
+				throw runtime_error(err);
+			}
 
 			ExtractPluginInfo();
 			ExtractForwards();
@@ -210,9 +228,15 @@ namespace SMV8
 			PluginRuntime* self = (PluginRuntime*)info.Data().As<External>()->Value();
 			SMV8Script s = self->script_loader->AutoLoadScript(self->reqMan->Require(self->plugin_script, *String::AsciiValue(info[0].As<String>())));
 
-			string adjusted_code = "var " + s.GetPackage() + " = {}; (function(){ " + s.GetCode() + " }).call(" + s.GetPackage() + ");";
+			HandleScope handle_scope(info.GetIsolate());
+			Handle<Object> tmp = Object::New();
 
-			Script::Compile(String::New(adjusted_code.c_str()))->Run();
+			// TODO: Security risk (or more like security suicide), try to execute in different context later
+			string adjusted_code = "(function(){ var tmp = {}; (function(){ " + s.GetCode() + " }).call(tmp); return tmp; }).call(this)";
+
+			Handle<Value> req = Script::Compile(String::New(adjusted_code.c_str()), String::New(s.GetPath().c_str()))->Run();
+
+			info.GetReturnValue().Set(req);
 		}
 
 		Handle<Value> PluginRuntime::CallV8Function(funcid_t funcid, int argc, Handle<Value> argv[])
@@ -258,8 +282,11 @@ namespace SMV8
 			PublicData *pd = new PublicData;
 			funcid_t funcId = AllocateVolatilePublic(pd);
 
+			ostringstream oss;
+			oss << "____auto____public_" << funcId;
+
 			pd->func.Reset(isolate,func);
-			pd->name = "____auto____public_" + funcId;
+			pd->name = oss.str();
 			pd->pfunc = new PluginFunction(*this, funcId);
 			pd->state.funcid = funcId;
 			pd->state.name = pd->name.c_str();

@@ -938,13 +938,18 @@ LoadRes CPluginManager::_LoadPlugin(CPlugin **_plugin, const char *path, bool de
 
 	if(IsV8Plugin(pPlugin))
 	{
-//		char fullpath[PLATFORM_MAX_PATH];
-//		g_pSM->BuildPath(Path_SM, fullpath, sizeof(fullpath), "plugins/%s", pPlugin->m_filename);
-
-		if((pPlugin->m_pRuntime = g_pV8->LoadPlugin(pPlugin->m_filename)) && pPlugin->UpdateInfo())
+		const char *err;
+		if((pPlugin->m_pRuntime = g_pV8->LoadPlugin(pPlugin->m_filename,&err)) && err == NULL && pPlugin->UpdateInfo())
 			pPlugin->m_status = Plugin_Created;
-		else
+		else 	
+		{
+			if(err != NULL)
+			{
+				smcore.LogError("Could not load V8 plugin due to errors: %s",err);
+			}
+
 			pPlugin->m_status = Plugin_BadLoad;
+		}
 	}
 	else
 	{

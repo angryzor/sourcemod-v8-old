@@ -16,8 +16,9 @@ namespace SMV8
 	class IManager
 	{
 	public:
-		virtual void Initialize(ISourceMod *sm, ILibrarySys *libsys) = 0;
-		virtual SourcePawn::IPluginRuntime *LoadPlugin(char* filename) = 0;
+		virtual void Initialize(ISourceMod *sm, ILibrarySys *libsys, const char **err) = 0;
+		virtual SourcePawn::IPluginRuntime *LoadPlugin(char* filename, const char **err) = 0;
+		virtual void SetDebugListener(SourcePawn::IDebugListenerV8 *debug_listener) = 0;
 	};
 
 }

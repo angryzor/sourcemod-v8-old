@@ -271,7 +271,7 @@ struct sm_logic_t
 	size_t          (*DecodeHexString)(unsigned char *, size_t, const char *);
 	IGameConfig *   (*GetCoreGameConfig)();
 	bool			(*OnLogPrint)(const char *msg);	// true to supercede
-	IDebugListener   *debugger;
+	IDebugListenerV8 *debugger;
 	void			(*GenerateError)(IPluginContext *, cell_t, int, const char *, ...);
 	void			(*AddNatives)(sp_nativeinfo_t *natives);
 	void			(*DumpHandles)(void (*dumpfn)(const char *fmt, ...));

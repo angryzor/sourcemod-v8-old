@@ -50,7 +50,7 @@ namespace SMV8
 			else if(val->IsNumber())
 				PushFloat(val.As<Number>(), param_dst);
 			else if(val->IsBoolean())
-				PushBool(val.As<Boolean>(), param_dst);
+				PushBool(val->ToBoolean(), param_dst);
 			else if(val->IsArray() || val->IsString())
 				PushByRef(WrapInDummyObject(val), param_dst, forcefloat);
 			else 
@@ -177,7 +177,9 @@ namespace SMV8
 			case FLOAT:
 				return Number::New(sp_ctof(result));
 			case BOOL:
-				return Boolean::New(result);
+				return Boolean::New((bool)result);
+			default:
+				throw runtime_error("Illegal result type");
 			}
 		}
 

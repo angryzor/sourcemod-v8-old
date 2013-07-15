@@ -41,7 +41,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(V8_HOME)\include;$(SolutionDir)..\public;$(SolutionDir)..\public\v8;$(SolutionDir)..\public\sourcepawn;$(SolutionDir)..\sourcepawn\jit;$(IncludePath)</IncludePath>
+    <IncludePath>$(V8_HOME)\include;$(SolutionDir)..\public;$(SolutionDir)..\public\v8;$(SolutionDir)..\public\sourcepawn;$(SolutionDir)..\sourcepawn\jit;$(SolutionDir)..\core\logic;$(IncludePath)</IncludePath>
     <LibraryPath>$(V8_HOME)\build\$(Configuration)\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -86,7 +86,6 @@
   <ItemGroup>
     <ClCompile Include="..\DependencyManager.cpp" />
     <ClCompile Include="..\dll_exports.cpp" />
-    <ClCompile Include="..\Plugin.cpp" />
     <ClCompile Include="..\Require\CurrentDirectoryProvider.cpp" />
     <ClCompile Include="..\Require\PackageRepositoryProvider.cpp" />
     <ClCompile Include="..\Require\RequireManager.cpp" />
@@ -101,17 +100,16 @@
     <None Include="ClassDiagram.cd" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\public\v8\Marshaller.h" />
-    <ClInclude Include="..\..\public\v8\Plugin.h" />
-    <ClInclude Include="..\..\public\v8\SPAPIEmulation.h" />
     <ClInclude Include="..\..\public\v8\IV8Manager.h" />
     <ClInclude Include="..\DependencyManager.h" />
     <ClInclude Include="..\dll_exports.h" />
+    <ClInclude Include="..\Marshaller.h" />
     <ClInclude Include="..\Require\CurrentDirectoryProvider.h" />
     <ClInclude Include="..\Require\IRequireProvider.h" />
     <ClInclude Include="..\Require\PackageRepositoryProvider.h" />
     <ClInclude Include="..\Require\RequireManager.h" />
     <ClInclude Include="..\ScriptLoader.h" />
+    <ClInclude Include="..\SPAPIEmulation.h" />
     <ClInclude Include="..\V8Manager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

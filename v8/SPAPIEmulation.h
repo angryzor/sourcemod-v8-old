@@ -7,6 +7,7 @@
 #include <v8.h>
 #include "ScriptLoader.h"
 #include "Require/RequireManager.h"
+#include "V8Manager.h"
 
 namespace SMV8
 {
@@ -205,7 +206,7 @@ namespace SMV8
 		{
 			friend class PluginFunction;
 		public:
-			PluginRuntime(Isolate* isolate, Require::RequireManager *reqMan, ScriptLoader *script_loader, SMV8Script plugin_script);
+			PluginRuntime(Isolate* isolate, Manager *manager, Require::RequireManager *reqMan, ScriptLoader *script_loader, SMV8Script plugin_script);
 			virtual ~PluginRuntime();
 			virtual IPluginDebugInfo *GetDebugInfo();
 			virtual int FindNativeByName(const char *name, uint32_t *index);
@@ -259,6 +260,7 @@ namespace SMV8
 			SMV8Script plugin_script;
 			Require::RequireManager *reqMan;
 			ScriptLoader *script_loader;
+			Manager *manager;
 		};
 
 
