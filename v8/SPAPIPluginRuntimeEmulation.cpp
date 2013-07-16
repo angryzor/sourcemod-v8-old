@@ -41,6 +41,9 @@ namespace SMV8
 
 			Context::Scope context_scope(ourContext);
 
+			SMV8Script intrinsics = script_loader->AutoLoadScript("v8/support/intrinsics");
+			Script::Compile(String::New(intrinsics.GetCode().c_str()), String::New(intrinsics.GetPath().c_str()))->Run();
+
 			TryCatch trycatch;
 			Handle<Script> script = Script::Compile(String::New(plugin_script.GetCode().c_str()), String::New(plugin_script.GetPath().c_str()));
 			Handle<Value> res = script->Run();
