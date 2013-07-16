@@ -1,5 +1,6 @@
 #include "Marshaller.h"
 #include <math.h>
+#include <sstream>
 
 namespace SMV8
 {
@@ -18,9 +19,6 @@ namespace SMV8
 
 		Handle<Value> V8ToSPMarshaller::HandleNativeCall(const FunctionCallbackInfo<Value>& info)
 		{
-//			if((size_t)info.Length() > native.params.size())
-//				throw runtime_error("Not enough parameters for native call");
-
 			HandleScope handle_scope(&isolate);
 
 			cell_t params[SP_MAX_EXEC_PARAMS];
@@ -29,7 +27,16 @@ namespace SMV8
 
 			for(int i = 0; i < std::min(info.Length(), SP_MAX_EXEC_PARAMS); i++)
 			{
-				PushParam(info[i], &params[i+1], false);
+				try
+				{
+					PushParam(info[i], &params[i+1], false);
+				}
+				catch(runtime_error& e)
+				{
+					ostringstream oss;
+					oss << "Error marshalling parameter " << i << ": " << e.what();
+					throw runtime_error(oss.str());
+				}
 			}
 
 			cell_t result = native.state.pfn(&ctx, params);

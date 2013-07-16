@@ -86,14 +86,14 @@ namespace SMV8
 		if(ifs.is_open())
 		{
 			content << ifs.rdbuf();
-			return SMV8Script(CompileCoffee(content.str()), location);
+			return SMV8Script(CompileCoffee(content.str()), location + ".coffee");
 		}
 
 		ifs.open(sfullpath + ".js");
 		if(ifs.is_open())
 		{
 			content << ifs.rdbuf();
-			return SMV8Script(content.str(), location);
+			return SMV8Script(content.str(), location + ".js");
 		}
 
 		throw runtime_error("Script can't be loaded: " + sfullpath);

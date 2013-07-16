@@ -261,6 +261,7 @@ namespace SMV8
 			Require::RequireManager *reqMan;
 			ScriptLoader *script_loader;
 			Manager *manager;
+			SMV8Script *current_script;
 		};
 
 

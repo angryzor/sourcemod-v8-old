@@ -31,7 +31,8 @@ namespace SMV8
 		};
 
 		PluginRuntime::PluginRuntime(Isolate* isolate, Manager *manager, Require::RequireManager *reqMan, ScriptLoader *script_loader, SMV8Script plugin_script)
-			: pauseState(false), isolate(isolate), ctx(this), plugin_script(plugin_script), reqMan(reqMan), script_loader(script_loader), manager(manager)
+			: pauseState(false), isolate(isolate), ctx(this), plugin_script(plugin_script), reqMan(reqMan),
+			  script_loader(script_loader), manager(manager), current_script(&this->plugin_script)
 		{
 			HandleScope handle_scope(isolate);
 
@@ -166,9 +167,16 @@ namespace SMV8
 			if(info.Length() < 1)
 				ThrowException(String::New("Invalid argument count"));
 
+			// Check if this native is already loaded
+			std::string nativeName = *String::AsciiValue(info[0].As<String>());
+			uint32_t existingIdx;
+			if(self->FindNativeByName(nativeName.c_str(), &existingIdx) == SP_ERROR_NONE)
+				return;
+
+			// Add the native to the database
 			NativeData* nd = new NativeData;
 			nd->runtime = self;
-			nd->name = *String::AsciiValue(info[0].As<String>());
+			nd->name = nativeName;
 			nd->state.flags = 0;
 			nd->state.pfn = InvalidV8Native;
 			nd->state.status = SP_NATIVE_UNBOUND;
@@ -194,14 +202,24 @@ namespace SMV8
 		void PluginRuntime::NativeRouter(const FunctionCallbackInfo<Value>& info)
 		{
 			NativeData* nd = (NativeData*)info.Data().As<External>()->Value();
-/*			if(info.Length() < nd->params.size())
+			try
 			{
-				ThrowException(String::New("Not enough parameters for native."));
+	/*			if(info.Length() < nd->params.size())
+				{
+					ThrowException(String::New("Not enough parameters for native."));
+				}
+	*/
+				V8ToSPMarshaller marshaller(*nd->runtime->isolate, *nd);
+				marshaller.HandleNativeCall(info);
 			}
-*/
-
-			V8ToSPMarshaller marshaller(*nd->runtime->isolate, *nd);
-			marshaller.HandleNativeCall(info);
+			catch(runtime_error& e)
+			{
+				info.GetReturnValue().Set(ThrowException(String::New(("Error when calling native function '" + nd->name + "': " + e.what()).c_str())));
+			}
+			catch(logic_error& e)
+			{
+				info.GetReturnValue().Set(ThrowException(String::New(("Error when calling native function '" + nd->name + "': " + e.what()).c_str())));
+			}
 		}
 
 /*		void PluginRuntime::InsertNativeParams(NativeData& nd, Handle<Array> signature)
@@ -229,7 +247,12 @@ namespace SMV8
 		void PluginRuntime::Require(const FunctionCallbackInfo<Value>& info)
 		{
 			PluginRuntime* self = (PluginRuntime*)info.Data().As<External>()->Value();
-			SMV8Script s = self->script_loader->AutoLoadScript(self->reqMan->Require(self->plugin_script, *String::AsciiValue(info[0].As<String>())));
+
+			// We need to tell make sure that inside the  script we're requiring now, requires are made from that
+			// script's perspective
+			SMV8Script *curscript = self->current_script;
+			SMV8Script s = self->script_loader->AutoLoadScript(self->reqMan->Require(*curscript, *String::AsciiValue(info[0].As<String>())));
+			self->current_script = &s;
 
 			HandleScope handle_scope(info.GetIsolate());
 			Handle<Object> tmp = Object::New();
@@ -238,6 +261,8 @@ namespace SMV8
 			string adjusted_code = "(function(){ var tmp = {}; (function(){ " + s.GetCode() + " }).call(tmp); return tmp; }).call(this)";
 
 			Handle<Value> req = Script::Compile(String::New(adjusted_code.c_str()), String::New(s.GetPath().c_str()))->Run();
+
+			self->current_script = curscript;
 
 			info.GetReturnValue().Set(req);
 		}

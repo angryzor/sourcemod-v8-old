@@ -32,7 +32,7 @@ namespace SMV8
 					return provider->Require(requirer, path + "/main");
 			}
 
-			throw runtime_error("Dependency error: cannot resolve dependency '" + path + "'");
+			throw runtime_error("Dependency error: cannot resolve dependency '" + path + "' in script '" + requirer.GetPath() + "'");
 		}
 	}
 }
