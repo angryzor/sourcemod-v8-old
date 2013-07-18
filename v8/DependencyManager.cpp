@@ -119,7 +119,7 @@ namespace SMV8
 	{
 		DependencyManager *self = (DependencyManager *)info.Data().As<External>()->Value();
 		string package = *String::AsciiValue(info[0].As<String>());
-		string pkgfile = self->packages_root + package + "/Pkgfile";
+		string pkgfile = self->packages_root + package + "/Pakfile";
 
 		SMV8Script s = self->scriptLoader->LoadScript(pkgfile, true);
 		info.GetReturnValue().Set(String::New(s.GetCode().c_str()));
