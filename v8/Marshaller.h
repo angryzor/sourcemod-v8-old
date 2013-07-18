@@ -16,6 +16,7 @@ namespace SMV8
 		{
 			Persistent<Object> refObj;
 			cell_t addr;
+			bool forcefloat;
 		};
 
 		class V8ToSPMarshaller
@@ -36,9 +37,11 @@ namespace SMV8
 			void PushFunction(Handle<Function> val, cell_t* param_dst);
 			Handle<Object> WrapInDummyObject(Handle<Value> val);
 			Handle<Value> GetResult(cell_t result);
-			Handle<Integer> PopIntRef();
-			Handle<Number> PopFloatRef();
-			Handle<String> PopString();
+			Handle<Value> PopRef(ReferenceInfo *ri);
+			Handle<Integer> PopIntRef(ReferenceInfo *ri);
+			Handle<Number> PopFloatRef(ReferenceInfo *ri);
+			Handle<String> PopString(ReferenceInfo *ri);
+			Handle<Array> PopArray(ReferenceInfo *ri);
 			void CopyBackRefs();
 		private:
 			PluginRuntime& runtime;

@@ -3,6 +3,7 @@
 
 #include <sp_vm_api.h>
 #include <vector>
+#include <list>
 #include <cstdarg>
 #include <v8.h>
 #include "ScriptLoader.h"
@@ -248,6 +249,9 @@ namespace SMV8
 			virtual funcid_t AllocateVolatilePublic(PublicData *pd);
 			static void VolatilePublicDisposer(Isolate* isolate, Persistent<Function> *func, PublicData* self);
 			static void Require(const FunctionCallbackInfo<Value>& info);
+			static void GetMaxClients(const FunctionCallbackInfo<Value>& info);
+			virtual void GenerateMaxClients();
+			static void RequireExt(const FunctionCallbackInfo<Value>& info);
 		private:
 			std::vector<NativeData*> natives;
 			std::vector<PublicData*> publics;
@@ -262,6 +266,8 @@ namespace SMV8
 			ScriptLoader *script_loader;
 			Manager *manager;
 			SMV8Script *current_script;
+			cell_t *maxClients;
+			std::list<std::string> loadedExts;
 		};
 
 

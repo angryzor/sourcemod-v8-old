@@ -151,7 +151,18 @@ namespace SMV8
 		const int argc = 1;
 		Handle<Value> argv[argc] = { String::New(coffee.c_str()) };
 
+		TryCatch trycatch;
 		Handle<Value> result = coffeescript->Get(String::New("compile")).As<Function>()->Call(coffeescript, argc, argv);
+		if(result.IsEmpty())
+		{
+			Handle<Value> exception = trycatch.Exception();
+			String::AsciiValue exceptionStr(exception);
+
+			std::string err = *exceptionStr;
+
+			throw runtime_error("Can't compile CoffeeScript: " + err);
+		}
+
 		String::Utf8Value jsutf8(result.As<String>());
 		return *jsutf8;
 	}

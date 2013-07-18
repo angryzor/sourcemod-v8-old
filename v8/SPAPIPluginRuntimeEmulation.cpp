@@ -30,6 +30,14 @@ namespace SMV8
 			cell_t url;
 		};
 
+		struct _ext
+		{
+			cell_t name;
+			cell_t file;
+			cell_t autoload;
+			cell_t required;
+		} *ext;
+
 		PluginRuntime::PluginRuntime(Isolate* isolate, Manager *manager, Require::RequireManager *reqMan, ScriptLoader *script_loader, SMV8Script plugin_script)
 			: pauseState(false), isolate(isolate), ctx(this), plugin_script(plugin_script), reqMan(reqMan),
 			  script_loader(script_loader), manager(manager), current_script(&this->plugin_script)
@@ -67,6 +75,7 @@ namespace SMV8
 
 			ExtractPluginInfo();
 			ExtractForwards();
+			GenerateMaxClients();
 		}
 
 		PluginRuntime::~PluginRuntime()
@@ -96,7 +105,14 @@ namespace SMV8
 			global->Set("plugin",GeneratePluginObjectTemplate());
 			global->Set("forwards",ObjectTemplate::New());
 			global->Set("require", FunctionTemplate::New(&Require, External::New(this)));
+			global->Set("requireExt", FunctionTemplate::New(&RequireExt, External::New(this)));
 			return handle_scope.Close(global);
+		}
+
+		void PluginRuntime::GetMaxClients(const FunctionCallbackInfo<Value>& info)
+		{
+			PluginRuntime* self = (PluginRuntime*)info.Data().As<External>()->Value();
+			info.GetReturnValue().Set(Integer::New(*self->maxClients));
 		}
 
 		/**
@@ -108,6 +124,7 @@ namespace SMV8
 			Handle<ObjectTemplate> natives(ObjectTemplate::New());
 			Handle<External> self = External::New(this);
 			natives->Set("declare", FunctionTemplate::New(DeclareNative,self));
+			natives->Set("GetMaxClients", FunctionTemplate::New(&GetMaxClients, External::New(this)));
 			return handle_scope.Close(natives);
 		}
 
@@ -210,7 +227,7 @@ namespace SMV8
 				}
 	*/
 				V8ToSPMarshaller marshaller(*nd->runtime->isolate, *nd);
-				marshaller.HandleNativeCall(info);
+				info.GetReturnValue().Set(marshaller.HandleNativeCall(info));
 			}
 			catch(runtime_error& e)
 			{
@@ -341,6 +358,53 @@ namespace SMV8
 			return isolate;
 		}
 
+		void PluginRuntime::RequireExt(const FunctionCallbackInfo<Value>& info)
+		{
+			HandleScope handle_scope(info.GetIsolate());
+			PluginRuntime* self = (PluginRuntime*)info.Data().As<External>()->Value();
+			cell_t local_addr;
+			_ext *extData;
+
+			if(info.Length() < 2)
+			{
+				info.GetReturnValue().Set(ThrowException(String::New("Too few arguments")));
+				return;
+			}
+
+			string name = *String::AsciiValue(info[0]->ToString());
+			string file = *String::AsciiValue(info[1]->ToString());
+			bool autoload = info.Length() >= 3 ? info[2]->ToBoolean()->Value() : true;
+			bool required = info.Length() >= 4 ? info[3]->ToBoolean()->Value() : true;
+
+			for(string &loadedExt: self->loadedExts)
+			{
+				if(loadedExt == file)
+					return;
+			}
+
+			self->ctx.HeapAlloc(sizeof(_ext) / sizeof(cell_t), &local_addr, (cell_t **)&extData);
+			self->LoadEmulatedString(name, extData->name);
+			self->LoadEmulatedString(file, extData->file);
+			extData->autoload = autoload;
+			extData->required = required;
+
+			ostringstream oss;
+			oss << "__ext_" << self->pubvars.size();
+
+			PubvarData pd;
+			pd.local_addr = local_addr;
+			pd.pubvar.offs = (cell_t *)extData;
+
+			char* varname;
+			self->ctx.HeapAlloc(4,&local_addr,(cell_t**)&varname);
+			self->ctx.StringToLocal(local_addr, 16, oss.str().c_str());
+
+			pd.pubvar.name = varname;
+
+			self->pubvars.push_back(pd);
+			self->loadedExts.push_back(file);
+		}
+
 		IPluginDebugInfo *PluginRuntime::GetDebugInfo()
 		{
 			return NULL;
@@ -456,6 +520,19 @@ namespace SMV8
 			ctx.HeapAlloc(cells_required, &local_addr, &phys_addr);
 			ctx.StringToLocal(local_addr, bytes_required, realstr.c_str());
 			local_addr_target = local_addr;
+		}
+
+		void PluginRuntime::GenerateMaxClients()
+		{
+			cell_t local_addr;
+			ctx.HeapAlloc(1, &local_addr, &maxClients);
+
+			PubvarData pd;
+			pd.local_addr = local_addr;
+			pd.pubvar.name = "MaxClients";
+			pd.pubvar.offs = maxClients;
+
+			pubvars.push_back(pd);
 		}
 
 		int PluginRuntime::GetPubvarByIndex(uint32_t index, sp_pubvar_t **pubvar)
