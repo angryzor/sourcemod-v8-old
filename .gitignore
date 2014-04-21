@@ -25,3 +25,6 @@ Release*/
 [dD]esktop.ini
 [tT]humbs.db
 build/*
+
+/.hg/
+

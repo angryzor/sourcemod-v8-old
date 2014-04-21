@@ -40,6 +40,7 @@
 #include <sp_vm_api.h>
 #include <sh_vector.h>
 #include <IExtensionSys.h>
+#include <v8/IV8Manager.h>
 
 using namespace SourceMod;
 using namespace SourcePawn;
