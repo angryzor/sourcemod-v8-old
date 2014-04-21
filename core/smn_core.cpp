@@ -37,9 +37,7 @@
 #include "sourcemod.h"
 #include "LibrarySys.h"
 #include "TimerSys.h"
-#include "ForwardSys.h"
 #include "Logger.h"
-#include <sm_trie_tpl.h>
 #include <sh_memory.h>
 #include "logic_bridge.h"
 
@@ -68,7 +66,7 @@ public:
 
 		g_PlIter = handlesys->CreateType("PluginIterator", this, 0, NULL, NULL, g_pCoreIdent, NULL);
 
-		g_OnLogAction = g_Forwards.CreateForward("OnLogAction", 
+		g_OnLogAction = forwardsys->CreateForward("OnLogAction", 
 			ET_Hook, 
 			5, 
 			NULL,
@@ -85,7 +83,7 @@ public:
 	}
 	void OnSourceModShutdown()
 	{
-		g_Forwards.ReleaseForward(g_OnLogAction);
+		forwardsys->ReleaseForward(g_OnLogAction);
 		handlesys->RemoveType(g_PlIter, g_pCoreIdent);
 	}
 } g_CoreNativeHelpers;
@@ -684,11 +682,11 @@ static cell_t LoadFromAddress(IPluginContext *pContext, const cell_t *params)
 
 	if (addr == NULL)
 	{
-		pContext->ThrowNativeError("Address cannot be null");
+		return pContext->ThrowNativeError("Address cannot be null");
 	}
 	else if (reinterpret_cast<uintptr_t>(addr) < VALID_MINIMUM_MEMORY_ADDRESS)
 	{
-		pContext->ThrowNativeError("Invalid address 0x%x is pointing to reserved memory.", addr);
+		return pContext->ThrowNativeError("Invalid address 0x%x is pointing to reserved memory.", addr);
 	}
 	NumberType size = static_cast<NumberType>(params[2]);
 
@@ -701,10 +699,8 @@ static cell_t LoadFromAddress(IPluginContext *pContext, const cell_t *params)
 	case NumberType_Int32:
 		return *reinterpret_cast<uint32_t*>(addr);
 	default:
-		pContext->ThrowNativeError("Invalid number types %d", size);
+		return pContext->ThrowNativeError("Invalid number types %d", size);
 	}
-
-	return 1;
 }
 
 
@@ -714,11 +710,11 @@ static cell_t StoreToAddress(IPluginContext *pContext, const cell_t *params)
 
 	if (addr == NULL)
 	{
-		pContext->ThrowNativeError("Address cannot be null");
+		return pContext->ThrowNativeError("Address cannot be null");
 	}
 	else if (reinterpret_cast<uintptr_t>(addr) < VALID_MINIMUM_MEMORY_ADDRESS)
 	{
-		pContext->ThrowNativeError("Invalid address 0x%x is pointing to reserved memory.", addr);
+		return pContext->ThrowNativeError("Invalid address 0x%x is pointing to reserved memory.", addr);
 	}
 	cell_t data = params[2];
 
@@ -739,10 +735,10 @@ static cell_t StoreToAddress(IPluginContext *pContext, const cell_t *params)
 		*reinterpret_cast<uint32_t*>(addr) = data;
 		break;
 	default:
-		pContext->ThrowNativeError("Invalid number types %d", size);
+		return pContext->ThrowNativeError("Invalid number types %d", size);
 	}
 
-	return 1;
+	return 0;
 }
 
 REGISTER_NATIVES(coreNatives)

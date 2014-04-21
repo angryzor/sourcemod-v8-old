@@ -207,14 +207,6 @@ public __ext_core_SetNTVOptional()
 	MarkNativeAsOptional("PbReadVector");
 	MarkNativeAsOptional("PbReadVector2D");
 	MarkNativeAsOptional("PbGetRepeatedFieldCount");
-	MarkNativeAsOptional("PbReadRepeatedInt");
-	MarkNativeAsOptional("PbReadRepeatedFloat");
-	MarkNativeAsOptional("PbReadRepeatedBool");
-	MarkNativeAsOptional("PbReadRepeatedString");
-	MarkNativeAsOptional("PbReadRepeatedColor");
-	MarkNativeAsOptional("PbReadRepeatedAngle");
-	MarkNativeAsOptional("PbReadRepeatedVector");
-	MarkNativeAsOptional("PbReadRepeatedVector2D");
 	MarkNativeAsOptional("PbSetInt");
 	MarkNativeAsOptional("PbSetFloat");
 	MarkNativeAsOptional("PbSetBool");
@@ -231,6 +223,7 @@ public __ext_core_SetNTVOptional()
 	MarkNativeAsOptional("PbAddAngle");
 	MarkNativeAsOptional("PbAddVector");
 	MarkNativeAsOptional("PbAddVector2D");
+	MarkNativeAsOptional("PbRemoveRepeatedFieldValue");
 	MarkNativeAsOptional("PbReadMessage");
 	MarkNativeAsOptional("PbReadRepeatedMessage");
 	MarkNativeAsOptional("PbAddMessage");

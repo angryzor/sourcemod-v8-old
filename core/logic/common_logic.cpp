@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 sw=4 :
+ * vim: set ts=4 sw=4 tw=99 noet:
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -48,6 +48,7 @@
 #include "NativeOwner.h"
 #include "HandleSys.h"
 #include "ExtensionSys.h"
+#include "ForwardSys.h"
 
 sm_core_t smcore;
 IHandleSys *handlesys = &g_HandleSys;
@@ -60,7 +61,7 @@ IVEngineServer *engine;
 IShareSys *sharesys = &g_ShareSys;
 IRootConsole *rootmenu;
 IPluginManager *pluginsys = g_PluginSys.GetOldAPI();
-IForwardManager *forwardsys;
+IForwardManager *forwardsys = &g_Forwards;
 ITimerSystem *timersys;
 ServerGlobals serverGlobals;
 IPlayerManager *playerhelpers;
@@ -125,6 +126,7 @@ static sm_logic_t logic =
 	&g_ShareSys,
 	&g_Extensions,
 	&g_HandleSys,
+	&g_Forwards,
 	NULL,
 	-1.0f
 };
@@ -141,7 +143,6 @@ static void logic_init(const sm_core_t* core, sm_logic_t* _logic)
 	engine = core->engine;
 	g_pSM = core->sm;
 	rootmenu = core->rootmenu;
-	forwardsys = core->forwardsys;
 	timersys = core->timersys;
 	playerhelpers = core->playerhelpers;
 	adminsys = core->adminsys;
@@ -149,6 +150,7 @@ static void logic_init(const sm_core_t* core, sm_logic_t* _logic)
 	g_pSourcePawn = *core->spe1;
 	g_pSourcePawn2 = *core->spe2;
 	g_pV8 = *core->v8;
+	SMGlobalClass::head = core->listeners;
 
 	g_ShareSys.Initialize();
 	g_pCoreIdent = g_ShareSys.CreateCoreIdentity();

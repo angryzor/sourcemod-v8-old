@@ -32,13 +32,11 @@
 #ifndef _INCLUDE_HOOKS_H_
 #define _INCLUDE_HOOKS_H_
 
-#include "basehandle.h"
-#undef ARRAYSIZE
-#include "vector.h"
-#include "utlvector.h"
-#include <shareddefs.h>
-#include "usercmd.h"
+class CUserCmd;
+
 #include "extension.h"
+#include "amtl/am-vector.h"
+#include "vtable_hook_helper.h"
 
 class CHookManager : IPluginsListener, IFeatureProvider
 {
@@ -47,7 +45,6 @@ public:
 	void Initialize();
 	void Shutdown();
 	void OnClientPutInServer(int client);
-	void OnClientDisconnecting(int client);
 	void PlayerRunCmd(CUserCmd *ucmd, IMoveHelper *moveHelper);
 public: //IPluginsListener
 	void OnPluginLoaded(IPlugin *plugin);
@@ -57,6 +54,7 @@ public: //IFeatureProvider
 
 private:
 	IForward *m_usercmdsFwd;
+	ke::Vector<CVTableHook *> m_runUserCmdHooks;
 };
 
 extern CHookManager g_Hooks;

@@ -788,9 +788,13 @@ static cell_t GetTimeConnected(IPluginContext *pContext, const cell_t *params)
 	if (!pPlayer)
 	{
 		return pContext->ThrowNativeError("Client index %d is invalid", client);
-	} else if (!pPlayer->IsInGame()) {
-		return pContext->ThrowNativeError("Client %d is not in game", client);
-	} else if (pPlayer->IsFakeClient()) {
+	}
+	else if (!pPlayer->IsConnected())
+	{
+		return pContext->ThrowNativeError("Client %d is not connected", client);
+	}
+	else if (pPlayer->IsFakeClient())
+	{
 		return pContext->ThrowNativeError("Client %d is a bot", client);
 	}
 
@@ -811,9 +815,13 @@ static cell_t GetDataRate(IPluginContext *pContext, const cell_t *params)
 	if (!pPlayer)
 	{
 		return pContext->ThrowNativeError("Client index %d is invalid", client);
-	} else if (!pPlayer->IsInGame()) {
-		return pContext->ThrowNativeError("Client %d is not in game", client);
-	} else if (pPlayer->IsFakeClient()) {
+	}
+	else if (!pPlayer->IsConnected())
+	{
+		return pContext->ThrowNativeError("Client %d is not connected", client);
+	}
+	else if (pPlayer->IsFakeClient())
+	{
 		return pContext->ThrowNativeError("Client %d is a bot", client);
 	}
 
@@ -834,9 +842,13 @@ static cell_t IsTimingOut(IPluginContext *pContext, const cell_t *params)
 	if (!pPlayer)
 	{
 		return pContext->ThrowNativeError("Client index %d is invalid", client);
-	} else if (!pPlayer->IsInGame()) {
-		return pContext->ThrowNativeError("Client %d is not in game", client);
-	} else if (pPlayer->IsFakeClient()) {
+	}
+	else if (!pPlayer->IsConnected())
+	{
+		return pContext->ThrowNativeError("Client %d is not connected", client);
+	}
+	else if (pPlayer->IsFakeClient())
+	{
 		return pContext->ThrowNativeError("Client %d is a bot", client);
 	}
 
@@ -859,9 +871,9 @@ static cell_t GetLatency(IPluginContext *pContext, const cell_t *params)
 	{
 		return pContext->ThrowNativeError("Client index %d is invalid", client);
 	}
-	else if (!pPlayer->IsInGame())
+	else if (!pPlayer->IsConnected())
 	{
-		return pContext->ThrowNativeError("Client %d is not in game", client);
+		return pContext->ThrowNativeError("Client %d is not connected", client);
 	}
 	else if (pPlayer->IsFakeClient())
 	{
@@ -896,9 +908,9 @@ static cell_t GetAvgLatency(IPluginContext *pContext, const cell_t *params)
 	{
 		return pContext->ThrowNativeError("Client index %d is invalid", client);
 	}
-	else if (!pPlayer->IsInGame())
+	else if (!pPlayer->IsConnected())
 	{
-		return pContext->ThrowNativeError("Client %d is not in game", client);
+		return pContext->ThrowNativeError("Client %d is not connected", client);
 	}
 	else if (pPlayer->IsFakeClient())
 	{
@@ -933,9 +945,9 @@ static cell_t GetAvgLoss(IPluginContext *pContext, const cell_t *params)
 	{
 		return pContext->ThrowNativeError("Client index %d is invalid", client);
 	}
-	else if (!pPlayer->IsInGame())
+	else if (!pPlayer->IsConnected())
 	{
-		return pContext->ThrowNativeError("Client %d is not in game", client);
+		return pContext->ThrowNativeError("Client %d is not connected", client);
 	}
 	else if (pPlayer->IsFakeClient())
 	{
@@ -970,9 +982,9 @@ static cell_t GetAvgChoke(IPluginContext *pContext, const cell_t *params)
 	{
 		return pContext->ThrowNativeError("Client index %d is invalid", client);
 	}
-	else if (!pPlayer->IsInGame())
+	else if (!pPlayer->IsConnected())
 	{
-		return pContext->ThrowNativeError("Client %d is not in game", client);
+		return pContext->ThrowNativeError("Client %d is not connected", client);
 	}
 	else if (pPlayer->IsFakeClient())
 	{
@@ -1007,9 +1019,9 @@ static cell_t GetAvgData(IPluginContext *pContext, const cell_t *params)
 	{
 		return pContext->ThrowNativeError("Client index %d is invalid", client);
 	}
-	else if (!pPlayer->IsInGame())
+	else if (!pPlayer->IsConnected())
 	{
-		return pContext->ThrowNativeError("Client %d is not in game", client);
+		return pContext->ThrowNativeError("Client %d is not connected", client);
 	}
 	else if (pPlayer->IsFakeClient())
 	{
@@ -1044,9 +1056,9 @@ static cell_t GetAvgPackets(IPluginContext *pContext, const cell_t *params)
 	{
 		return pContext->ThrowNativeError("Client index %d is invalid", client);
 	}
-	else if (!pPlayer->IsInGame())
+	else if (!pPlayer->IsConnected())
 	{
-		return pContext->ThrowNativeError("Client %d is not in game", client);
+		return pContext->ThrowNativeError("Client %d is not connected", client);
 	}
 	else if (pPlayer->IsFakeClient())
 	{
@@ -1054,7 +1066,6 @@ static cell_t GetAvgPackets(IPluginContext *pContext, const cell_t *params)
 	}
 
 	INetChannelInfo *pInfo = engine->GetPlayerNetInfo(client);
-
 	if (pInfo == NULL)
 	{
 		return 0;
@@ -1118,11 +1129,7 @@ static cell_t _ShowActivity(IPluginContext *pContext,
 			}
 
 			UTIL_Format(message, sizeof(message), "%s%s\n", tag, buffer);
-#if SOURCE_ENGINE == SE_DOTA
-			engine->ClientPrintf(pPlayer->GetIndex(), message);
-#else
-			engine->ClientPrintf(pPlayer->GetEdict(), message);
-#endif
+			pPlayer->PrintToConsole(message);
 			display_in_chat = true;
 		}
 	}
@@ -1248,20 +1255,8 @@ static cell_t _ShowActivity2(IPluginContext *pContext,
 		 * simply gets added to the console, so we don't want it to print 
 		 * twice.
 		 */
-		if (replyto == SM_REPLY_CONSOLE)
-		{
-#if 0
-			UTIL_Format(message, sizeof(message), "%s%s\n", tag, buffer);
-			engine->ClientPrintf(pPlayer->GetEdict(), message);
-#endif
-			UTIL_Format(message, sizeof(message), "%s%s", tag, buffer);
-			g_HL2.TextMsg(client, HUD_PRINTTALK, message);
-		}
-		else
-		{
-			UTIL_Format(message, sizeof(message), "%s%s", tag, buffer);
-			g_HL2.TextMsg(client, HUD_PRINTTALK, message);
-		}
+		UTIL_Format(message, sizeof(message), "%s%s", tag, buffer);
+		g_HL2.TextMsg(client, HUD_PRINTTALK, message);
 	}
 	else
 	{
@@ -1404,7 +1399,6 @@ static cell_t KickClient(IPluginContext *pContext, const cell_t *params)
 		return 1;
 	}
 
-	pPlayer->MarkAsBeingKicked();
 	g_HL2.AddDelayedKick(client, pPlayer->GetUserId(), buffer);
 
 	return 1;

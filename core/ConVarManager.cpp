@@ -29,11 +29,10 @@
 
 #include "ConVarManager.h"
 #include "HalfLife2.h"
-#include "ForwardSys.h"
 #include "sm_srvcmds.h"
 #include "sm_stringutil.h"
 #include <sh_vector.h>
-#include <sm_trie_tpl.h>
+#include <sm_namehashset.h>
 #include "logic_bridge.h"
 
 ConVarManager g_ConVarManager;
@@ -54,7 +53,7 @@ SH_DECL_HOOK5_void(IServerPluginCallbacks, OnQueryCvarValueFinished, SH_NOATTRIB
 
 const ParamType CONVARCHANGE_PARAMS[] = {Param_Cell, Param_String, Param_String};
 typedef List<const ConVar *> ConVarList;
-KTrie<ConVarInfo *> convar_cache;
+NameHashSet<ConVarInfo *> convar_cache;
 
 class ConVarReentrancyGuard
 {
@@ -124,6 +123,8 @@ void ConVarManager::OnSourceModAllInitialized()
 	}
 #endif
 
+	g_Players.AddClientListener(this);
+
 #if SOURCE_ENGINE >= SE_ORANGEBOX
 	SH_ADD_HOOK(ICvar, CallGlobalChangeCallbacks, icvar, SH_STATIC(OnConVarChanged), false);
 #else
@@ -151,7 +152,7 @@ void ConVarManager::OnSourceModShutdown()
 		handlesys->FreeHandle(pInfo->handle, &sec);
 		if (pInfo->pChangeForward != NULL)
 		{
-			g_Forwards.ReleaseForward(pInfo->pChangeForward);
+			forwardsys->ReleaseForward(pInfo->pChangeForward);
 		}
 		if (pInfo->sourceMod)
 		{
@@ -194,6 +195,8 @@ void ConVarManager::OnSourceModShutdown()
 		m_bIsVSPQueryHooked = false;
 	}
 #endif
+
+	g_Players.RemoveClientListener(this);
 
 #if SOURCE_ENGINE >= SE_ORANGEBOX
 	SH_REMOVE_HOOK(ICvar, CallGlobalChangeCallbacks, icvar, SH_STATIC(OnConVarChanged), false);
@@ -245,16 +248,7 @@ void ConVarManager::OnSourceModVSPReceived()
 
 bool convar_cache_lookup(const char *name, ConVarInfo **pVar)
 {
-	ConVarInfo **pLookup = convar_cache.retrieve(name);
-	if (pLookup != NULL)
-	{
-		*pVar = *pLookup;
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	return convar_cache.retrieve(name, pVar);
 }
 
 void ConVarManager::OnUnlinkConCommandBase(ConCommandBase *pBase, const char *name, bool is_read_safe)
@@ -304,14 +298,35 @@ void ConVarManager::OnPluginUnloaded(IPlugin *plugin)
 		delete pConVarList;
 	}
 
+	const IPluginRuntime * pRuntime = plugin->GetRuntime();
+
 	/* Remove convar queries for this plugin that haven't returned results yet */
-	for (iter = m_ConVarQueries.begin(); iter != m_ConVarQueries.end(); iter++)
+	for (iter = m_ConVarQueries.begin(); iter != m_ConVarQueries.end();)
 	{
 		ConVarQuery &query = (*iter);
-		if (query.pCallback->GetParentRuntime() == plugin->GetRuntime())
+		if (query.pCallback->GetParentRuntime() == pRuntime)
 		{
-			m_ConVarQueries.erase(iter);
+			iter = m_ConVarQueries.erase(iter);
+			continue;
 		}
+
+		++iter;
+	}
+}
+
+void ConVarManager::OnClientDisconnected(int client)
+{
+	/* Remove convar queries for this client that haven't returned results yet */
+	for (List<ConVarQuery>::iterator iter = m_ConVarQueries.begin(); iter != m_ConVarQueries.end();)
+	{
+		ConVarQuery &query = (*iter);
+		if (query.client == client)
+		{
+			iter = m_ConVarQueries.erase(iter);
+			continue;
+		}
+
+		++iter;
 	}
 }
 
@@ -562,7 +577,7 @@ void ConVarManager::HookConVarChange(ConVar *pConVar, IPluginFunction *pFunction
 		/* If forward does not exist, create it */
 		if (!pForward)
 		{
-			pForward = g_Forwards.CreateForwardEx(NULL, ET_Ignore, 3, CONVARCHANGE_PARAMS);
+			pForward = forwardsys->CreateForwardEx(NULL, ET_Ignore, 3, CONVARCHANGE_PARAMS);
 			pInfo->pChangeForward = pForward;
 		}
 
@@ -602,7 +617,7 @@ void ConVarManager::UnhookConVarChange(ConVar *pConVar, IPluginFunction *pFuncti
 			!ConVarReentrancyGuard::IsCvarInChain(pConVar))
 		{
 			/* Free this forward */
-			g_Forwards.ReleaseForward(pForward);
+			forwardsys->ReleaseForward(pForward);
 			pInfo->pChangeForward = NULL;
 		}
 	}
@@ -633,7 +648,7 @@ QueryCvarCookie_t ConVarManager::QueryClientConVar(edict_t *pPlayer, const char 
 		return InvalidQueryCvarCookie;
 	}
 
-	ConVarQuery query = {cookie, pCallback, hndl};
+	ConVarQuery query = {cookie, pCallback, (cell_t)hndl, IndexOfEdict(pPlayer)};
 	m_ConVarQueries.push_back(query);
 #endif
 

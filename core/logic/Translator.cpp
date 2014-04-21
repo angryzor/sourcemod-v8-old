@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet:
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -210,12 +210,7 @@ SMCResult CPhraseFile::ReadSMC_NewSection(const SMCStates *states, const char *n
 		m_ParseState = PPS_InPhrase;
 		recognized = true;
 
-		int *pvalue;
-		if ((pvalue = m_PhraseLookup.retrieve(name)) != NULL)
-		{
-			m_CurPhrase = *pvalue;
-		}
-		else
+		if (!m_PhraseLookup.retrieve(name, &m_CurPhrase))
 		{
 			phrase_t *pPhrase;
 
@@ -479,13 +474,6 @@ SMCResult CPhraseFile::ReadSMC_KeyValue(const SMCStates *states, const char *key
 	} 
 	else 
 	{
-		size_t len = strlen(key);
-		if (len < 2 || len > 3)
-		{
-			ParseWarning("Ignoring translation to invalid language \"%s\" on line %d.", key, states->line);
-			return SMCResult_Continue;
-		}
-
 		unsigned int lang;
 		if (!m_pTranslator->GetLanguageByCode(key, &lang))
 		{
@@ -498,7 +486,7 @@ SMCResult CPhraseFile::ReadSMC_KeyValue(const SMCStates *states, const char *key
 		/* See how many bytes we need for this string, then allocate.
 		 * NOTE: THIS SHOULD GUARANTEE THAT WE DO NOT NEED TO NEED TO SIZE CHECK 
 		 */
-		len = strlen(value) + pPhrase->fmt_bytes + 1;
+		size_t len = strlen(value) + pPhrase->fmt_bytes + 1;
 		char *out_buf;
 		int out_idx;
 
@@ -659,11 +647,11 @@ TransError CPhraseFile::GetTranslation(const char *szPhrase, unsigned int lang_i
 		return Trans_BadLanguage;
 	}
 
-	int *pvalue;
-	if ((pvalue = m_PhraseLookup.retrieve(szPhrase)) == NULL)
+	int address;
+	if (!m_PhraseLookup.retrieve(szPhrase, &address))
 		return Trans_BadPhrase;
 
-	phrase_t *pPhrase = (phrase_t *)m_pMemory->GetAddress(*pvalue);
+	phrase_t *pPhrase = (phrase_t *)m_pMemory->GetAddress(address);
 	trans_t *trans = (trans_t *)m_pMemory->GetAddress(pPhrase->trans_tbl);
 
 	trans = &trans[lang_id];
@@ -740,10 +728,7 @@ ConfigResult Translator::OnSourceModConfigChanged(const char *key,
 
 void Translator::OnSourceModLevelChange(const char *mapName)
 {
-	/* Refresh language stuff */
-	char path[PLATFORM_MAX_PATH];
-	g_pSM->BuildPath(Path_SM, path, sizeof(path), "configs/languages.cfg");
-	RebuildLanguageDatabase(path);
+	RebuildLanguageDatabase();
 }
 
 void Translator::OnSourceModAllInitialized()
@@ -769,15 +754,7 @@ void Translator::OnSourceModShutdown()
 
 bool Translator::GetLanguageByCode(const char *code, unsigned int *index)
 {
-	unsigned int *pindex;
-
-	if ((pindex = m_LCodeLookup.retrieve(code)) == NULL)
-		return false;
-
-	if (index)
-		*index = *pindex;
-
-	return true;
+	return m_LCodeLookup.retrieve(code, index);
 }
 
 bool Translator::GetLanguageByName(const char *name, unsigned int *index)
@@ -794,15 +771,7 @@ bool Translator::GetLanguageByName(const char *name, unsigned int *index)
 	}
 	lower[len] = '\0';
 
-	unsigned int *pIndex;
-
-	if ((pIndex = m_LAliases.retrieve(lower)) == NULL)
-		return false;
-
-	if (index)
-		*index = *pIndex;
-
-	return true;
+	return m_LAliases.retrieve(lower, index);
 }
 
 unsigned int Translator::GetLanguageCount()
@@ -835,7 +804,7 @@ unsigned int Translator::FindOrAddPhraseFile(const char *phrase_file)
 	return idx;
 }
 
-void Translator::RebuildLanguageDatabase(const char *lang_header_file)
+void Translator::RebuildLanguageDatabase()
 {
 	/* Erase everything we have */
 	m_LCodeLookup.clear();
@@ -849,9 +818,12 @@ void Translator::RebuildLanguageDatabase(const char *lang_header_file)
 	m_Languages.clear();
 
 	/* Start anew */
+	char path[PLATFORM_MAX_PATH];
+	g_pSM->BuildPath(Path_SM, path, sizeof(path), "configs/languages.cfg");
+
 	SMCError err;
 	SMCStates states;
-	if ((err=textparsers->ParseFile_SMC(lang_header_file, this, &states)) != SMCError_Okay)
+	if ((err=textparsers->ParseFile_SMC(path, this, &states)) != SMCError_Okay)
 	{
 		const char *str_err = textparsers->GetSMCErrorString(err);
 		if (!str_err)
@@ -859,22 +831,16 @@ void Translator::RebuildLanguageDatabase(const char *lang_header_file)
 			str_err = m_CustomError.c_str();
 		}
 
-		smcore.LogError("[SM] Failed to parse language header file: \"%s\"", lang_header_file);
+		smcore.LogError("[SM] Failed to parse language header file: \"%s\"", path);
 		smcore.LogError("[SM] Parse error (line %d, column %d): %s", states.line, states.col, str_err);
 	}
 
-	unsigned int *pServerLang;
-
-	if ((pServerLang = m_LCodeLookup.retrieve(m_InitialLang)) == NULL)
+	if (!m_LCodeLookup.retrieve(m_InitialLang, &m_ServerLang))
 	{
 		smcore.LogError("Server language was set to bad language \"%s\" -- reverting to English", m_InitialLang);
 
 		smcore.strncopy(m_InitialLang, "en", sizeof(m_InitialLang));
 		m_ServerLang = SOURCEMOD_LANGUAGE_ENGLISH;
-	}
-	else
-	{
-		m_ServerLang = *pServerLang;
 	}
 
 	if (!m_Languages.size())
@@ -921,14 +887,6 @@ SMCResult Translator::ReadSMC_LeavingSection(const SMCStates *states)
 
 SMCResult Translator::ReadSMC_KeyValue(const SMCStates *states, const char *key, const char *value)
 {
-	size_t len = strlen(key);
-
-	if (len < 2 || len > 3)
-	{
-		smcore.LogError("[SM] Warning encountered parsing languages.cfg file.");
-		smcore.LogError("[SM] Invalid language code \"%s\" is being ignored.", key);
-	}
-
 	AddLanguage(key, value);
 
 	return SMCResult_Continue;
@@ -948,15 +906,11 @@ bool Translator::AddLanguage(const char *langcode, const char *description)
 	}
 	lower[len] = '\0';
 
-	if (m_LAliases.retrieve(lower))
+	if (m_LAliases.contains(lower))
 		return false;
 
 	unsigned int idx;
-	if (unsigned int *pIdx = m_LCodeLookup.retrieve(langcode))
-	{
-		idx = *pIdx;
-	}
-	else
+	if (!m_LCodeLookup.retrieve(langcode, &idx))
 	{
 		Language *pLanguage = new Language;
 		idx = m_Languages.size();

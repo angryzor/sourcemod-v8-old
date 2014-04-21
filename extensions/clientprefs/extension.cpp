@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet:
  * =============================================================================
  * SourceMod Client Preferences Extension
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -32,6 +32,8 @@
 #include <sourcemod_version.h>
 #include "extension.h"
 
+using namespace ke;
+
 /**
  * @file extension.cpp
  * @brief Implement extension code here.
@@ -50,9 +52,6 @@ DbDriver g_DriverType;
 
 bool ClientPrefs::SDK_OnLoad(char *error, size_t maxlength, bool late)
 {
-	queryMutex = threader->MakeMutex();
-	cookieMutex = threader->MakeMutex();
-
 	DBInfo = dbi->FindDatabaseConf("clientprefs");
 
 	if (DBInfo == NULL)
@@ -148,25 +147,20 @@ bool ClientPrefs::QueryInterfaceDrop(SMInterface *pInterface)
 
 void ClientPrefs::NotifyInterfaceDrop(SMInterface *pInterface)
 {
-	if (Database != NULL && (void *)pInterface == (void *)(Database->GetDriver()))
-	{
-		Database->Close();
+	if (Database && (void *)pInterface == (void *)(Database->GetDriver()))
 		Database = NULL;
-	}
 }
 
-void ClientPrefs::SDK_OnUnload()
+void ClientPrefs::SDK_OnDependenciesDropped()
 {
+	// At this point, we're guaranteed that DBI has flushed the worker thread
+	// for us, so no cookies should have outstanding queries.
+	g_CookieManager.Unload();
+
 	handlesys->RemoveType(g_CookieType, myself->GetIdentity());
 	handlesys->RemoveType(g_CookieIterator, myself->GetIdentity());
 
-	g_CookieManager.Unload();
-
-	if (Database != NULL)
-	{
-		Database->Close();
-		Database = NULL;
-	}
+	Database = NULL;
 
 	if (g_CookieManager.cookieDataLoadedForward != NULL)
 	{
@@ -199,9 +193,6 @@ void ClientPrefs::SDK_OnUnload()
 
 	plsys->RemovePluginsListener(&g_CookieManager);
 	playerhelpers->RemoveClientListener(&g_CookieManager);
-
-	queryMutex->DestroyThis();
-	cookieMutex->DestroyThis();
 }
 
 void ClientPrefs::OnCoreMapStart(edict_t *pEdictList, int edictCount, int clientMax)
@@ -212,9 +203,7 @@ void ClientPrefs::OnCoreMapStart(edict_t *pEdictList, int edictCount, int client
 void ClientPrefs::AttemptReconnection()
 {
 	if (Database || databaseLoading)
-	{
 		return; /* We're already loading, or have loaded. */
-	}
 	
 	g_pSM->LogMessage(myself, "Attempting to reconnect to database...");
 	databaseLoading = true;
@@ -230,9 +219,9 @@ void ClientPrefs::DatabaseConnect()
 	char error[256];
 	int errCode = 0;
 
-	Database = Driver->Connect(DBInfo, true, error, sizeof(error));
+	Database = Newborn<IDatabase>(Driver->Connect(DBInfo, true, error, sizeof(error)));
 
-	if (Database == NULL)
+	if (!Database)
 	{
 		g_pSM->LogError(myself, error);
 		databaseLoading = false;
@@ -312,33 +301,30 @@ void ClientPrefs::DatabaseConnect()
 
 	databaseLoading = false;
 
-	this->ProcessQueryCache();	
+	// Need a new scope because of the goto above.
+	{
+		AutoLock lock(&queryLock);
+		this->ProcessQueryCache();	
+	}
 	return;
 
 fatal_fail:
-	Database->Close();
 	Database = NULL;
 	databaseLoading = false;
 }
 
-bool ClientPrefs::AddQueryToQueue( TQueryOp *query )
+bool ClientPrefs::AddQueryToQueue(TQueryOp *query)
 {
-	queryMutex->Lock();
-	if (Database == NULL)
 	{
-		cachedQueries.push_back(query);
-		queryMutex->Unlock();
-		return false;
-	}
-	
-	if (!cachedQueries.empty())
-	{
-		queryMutex->Unlock();
-		this->ProcessQueryCache();
-	}
-	else
-	{
-		queryMutex->Unlock();
+		AutoLock lock(&queryLock);
+		if (!Database)
+		{
+			cachedQueries.push_back(query);
+			return false;
+		}
+		
+		if (!cachedQueries.empty())
+			this->ProcessQueryCache();
 	}
 
 	query->SetDatabase(Database);
@@ -348,12 +334,11 @@ bool ClientPrefs::AddQueryToQueue( TQueryOp *query )
 
 void ClientPrefs::ProcessQueryCache()
 {
-	if (Database == NULL)
-	{
-		return;
-	}
+	queryLock.AssertCurrentThreadOwns();
 
-	queryMutex->Lock();
+	if (!Database)
+		return;
+
 	TQueryOp *op;
 	for (SourceHook::List<TQueryOp *>::iterator iter = cachedQueries.begin(); iter != cachedQueries.end(); iter++)
 	{
@@ -363,7 +348,6 @@ void ClientPrefs::ProcessQueryCache()
 	}
 
 	cachedQueries.clear();
-	queryMutex->Unlock();
 }
 
 size_t IsAuthIdConnected(char *authID)
@@ -417,8 +401,7 @@ void ClientPrefs::CatchLateLoadClients()
 
 void ClientPrefs::ClearQueryCache(int serial)
 {
-	queryMutex->Lock();
-
+	AutoLock lock(&queryLock);
 	for (SourceHook::List<TQueryOp *>::iterator iter = cachedQueries.begin(); iter != cachedQueries.end();)
 	{
 		TQueryOp *op = *iter;
@@ -432,7 +415,6 @@ void ClientPrefs::ClearQueryCache(int serial)
 			iter++;
  		}
  	}
-	queryMutex->Unlock();
 }
 
 bool Translate(char *buffer, 
@@ -514,23 +496,20 @@ IdentityToken_t *ClientPrefs::GetIdentity() const
 
 const char *ClientPrefs::GetExtensionVerString()
 {
-	return SM_VERSION_STRING;
+	return SOURCEMOD_VERSION;
 }
 
 const char *ClientPrefs::GetExtensionDateString()
 {
-	return SM_BUILD_TIMESTAMP;
+	return SOURCEMOD_BUILD_TIME;
 }
 
 ClientPrefs::ClientPrefs()
 {
 	Driver = NULL;
-	Database = NULL;
 	databaseLoading = false;
 	phrases = NULL;
 	DBInfo = NULL;
 
-	cookieMutex = NULL;
-	queryMutex = NULL;
 	identity = NULL;
 }

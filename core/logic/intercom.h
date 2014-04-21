@@ -36,10 +36,12 @@
 #include <IHandleSys.h>
 #include <IShareSys.h>
 #include <IPluginSys.h>
+#include <IDBDriver.h>
 #include <sh_string.h>
 #include <sp_vm_api.h>
 #include <sh_vector.h>
 #include <IExtensionSys.h>
+#include <IForwardSys.h>
 #include <v8/IV8Manager.h>
 
 using namespace SourceMod;
@@ -50,7 +52,7 @@ using namespace SourceHook;
  * Add 1 to the RHS of this expression to bump the intercom file
  * This is to prevent mismatching core/logic binaries
  */
-#define SM_LOGIC_MAGIC		(0x0F47C0DE - 22)
+#define SM_LOGIC_MAGIC		(0x0F47C0DE - 27)
 
 #if defined SM_LOGIC
 class IVEngineServer
@@ -63,6 +65,7 @@ public:
 	virtual void ServerCommand(const char *cmd) = 0;
 };
 
+typedef void * FileHandle_t;
 typedef int FileFindHandle_t; 
 
 #if defined SM_LOGIC
@@ -75,6 +78,12 @@ public:
 	virtual const char *FindFirstEx(const char *pWildCard, const char *pPathID, FileFindHandle_t *pHandle) = 0;
 	virtual const char *FindNext(FileFindHandle_t handle) = 0;
 	virtual void FindClose(FileFindHandle_t handle) = 0;
+	virtual FileHandle_t Open(const char *pFileName, const char *pOptions, const char *pathID = 0) = 0;
+	virtual void Close(FileHandle_t file) = 0;
+	virtual char *ReadLine(char *pOutput, int maxChars, FileHandle_t file) = 0;
+	virtual bool EndOfFile(FileHandle_t file) = 0;
+	virtual bool FileExists(const char *pFileName, const char *pPathID = 0) = 0;
+	virtual unsigned int Size(const char *pFileName, const char *pPathID = 0) = 0;
 };
 
 namespace SourceMod
@@ -98,6 +107,7 @@ namespace SourceMod
 class IVEngineServer;
 class IFileSystem;
 class ConVar;
+class KeyValues;
 class SMGlobalClass;
 
 namespace SourceMod
@@ -165,7 +175,7 @@ public:
 class IExtensionSys : public IExtensionManager
 {
 public:
-	virtual IExtension *LoadAutoExtension(const char *name) = 0;
+	virtual IExtension *LoadAutoExtension(const char *name, bool bErrorOnMissing=true) = 0;
 	virtual void TryAutoload() = 0;
 	virtual void Shutdown() = 0;
 	virtual IExtension *FindExtensionByFile(const char *name) = 0;
@@ -228,7 +238,6 @@ struct sm_core_t
 	IVEngineServer	*engine;
 	IFileSystem		*filesystem;
 	IRootConsole	*rootmenu;
-	IForwardManager	*forwardsys;
 	ITimerSystem    *timersys;
 	IPlayerManager  *playerhelpers;
 	IAdminSystem	*adminsys;
@@ -245,7 +254,6 @@ struct sm_core_t
 	void			(*Log)(const char*, ...);
 	void			(*LogToFile)(FILE *fp, const char*, ...);
 	void			(*LogToGame)(const char *message);
-	bool			(*FileExists)(const char *path);
 	const char *	(*GetCvarString)(ConVar*);
 	size_t			(*Format)(char*, size_t, const char*, ...);
 	size_t			(*FormatArgs)(char*, size_t, const char*,va_list ap);
@@ -266,12 +274,14 @@ struct sm_core_t
 	void			(*DoGlobalPluginLoads)();
 	bool			(*AreConfigsExecuted)();
 	void			(*ExecuteConfigs)(IPluginContext *ctx);
+	DatabaseInfo	(*GetDBInfoFromKeyValues)(KeyValues *);
 	const char		*gamesuffix;
 	/* Data */
 	ServerGlobals   *serverGlobals;
 	void *          serverFactory;
 	void *          engineFactory;
 	void *          matchmakingDSFactory;
+	SMGlobalClass *	listeners;
 };
 
 struct sm_logic_t
@@ -296,6 +306,7 @@ struct sm_logic_t
 	IShareSys		*sharesys;
 	IExtensionSys	*extsys;
 	IHandleSys		*handlesys;
+	IForwardManager	*forwardsys;
 	IdentityToken_t *core_ident;
 	float			sentinel;
 };

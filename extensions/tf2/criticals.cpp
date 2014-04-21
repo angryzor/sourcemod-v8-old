@@ -30,217 +30,189 @@
  */
 
 #include "criticals.h"
+#include "util.h"
 
-IServerGameEnts *gameents = NULL;
-
-CDetour *calcIsAttackCriticalDetour = NULL;
-CDetour *calcIsAttackCriticalMeleeDetour = NULL;
-CDetour *calcIsAttackCriticalBowDetour = NULL;
+CritManager g_CritManager;
 
 IForward *g_critForward = NULL;
 
-enum DetourResult
+SH_DECL_MANUALHOOK0(CalcIsAttackCriticalHelper, 0, 0, 0, bool);
+SH_DECL_MANUALHOOK0(CalcIsAttackCriticalHelperNoCrits, 0, 0, 0, bool);
+
+const char TF_WEAPON_DATATABLE[] = "DT_TFWeaponBase";
+
+CritManager::CritManager() :
+	m_enabled(false),
+	m_hooksSetup(false)
 {
-	Result_Ignore,
-	Result_NoCrit,
-	Result_Crit,
-};
-
-int CheckBaseHandle(CBaseHandle &hndl)
-{
-	if (!hndl.IsValid())
-	{
-		return -1;
-	}
-
-	int index = hndl.GetEntryIndex();
-
-	edict_t *pStoredEdict;
-
-	pStoredEdict = engine->PEntityOfEntIndex(index);
-
-	if (pStoredEdict == NULL)
-	{
-		return -1;
-	}
-
-	IServerEntity *pSE = pStoredEdict->GetIServerEntity();
-
-	if (pSE == NULL)
-	{
-		return -1;
-	}
-
-	if (pSE->GetRefEHandle() != hndl)
-	{
-		return -1;
-	}
-
-	return index;
+	m_entsHooked.Init();
 }
 
-DetourResult DetourCallback(CBaseEntity *pEnt)
+bool CritManager::TryEnable()
 {
-	edict_t *pEdict = gameents->BaseEntityToEdict((CBaseEntity *)pEnt);
-
-	if (!pEdict)
+	if (!m_hooksSetup)
 	{
-		g_pSM->LogMessage(myself, "Entity Error");
-		return Result_Ignore;
+		int offset;
+
+		if (!g_pGameConf->GetOffset("CalcIsAttackCriticalHelper", &offset))
+		{
+			g_pSM->LogError(myself, "Failed to find CalcIsAttackCriticalHelper offset");
+			return false;
+		}
+
+		SH_MANUALHOOK_RECONFIGURE(CalcIsAttackCriticalHelper, offset, 0, 0);
+
+		if (!g_pGameConf->GetOffset("CalcIsAttackCriticalHelperNoCrits", &offset))
+		{
+			g_pSM->LogError(myself, "Failed to find CalcIsAttackCriticalHelperNoCrits offset");
+			return false;
+		}
+
+		SH_MANUALHOOK_RECONFIGURE(CalcIsAttackCriticalHelperNoCrits, offset, 0, 0);
+
+		m_hooksSetup = true;
+	}
+
+	for (size_t i = playerhelpers->GetMaxClients() + 1; i < MAX_EDICTS; ++i)
+	{
+		CBaseEntity *pEntity = gamehelpers->ReferenceToEntity(i);
+		if (pEntity == NULL)
+			continue;
+
+		IServerUnknown *pUnknown = (IServerUnknown *)pEntity;
+		IServerNetworkable *pNetworkable = pUnknown->GetNetworkable();
+		if (!pNetworkable)
+			continue;
+
+		if (!UTIL_ContainsDataTable(pNetworkable->GetServerClass()->m_pTable, TF_WEAPON_DATATABLE))
+			continue;
+
+		SH_ADD_MANUALHOOK(CalcIsAttackCriticalHelper, pEntity, SH_MEMBER(&g_CritManager, &CritManager::Hook_CalcIsAttackCriticalHelper), false);
+		SH_ADD_MANUALHOOK(CalcIsAttackCriticalHelperNoCrits, pEntity, SH_MEMBER(&g_CritManager, &CritManager::Hook_CalcIsAttackCriticalHelperNoCrits), false);
+
+		m_entsHooked.Set(i);
+	}
+
+	m_enabled = true;
+
+	return true;
+}
+
+void CritManager::Disable()
+{
+	int i = m_entsHooked.FindNextSetBit(playerhelpers->GetMaxClients() + 1);
+	for (i; i != -1; i = m_entsHooked.FindNextSetBit(i))
+	{
+		CBaseEntity *pEntity = gamehelpers->ReferenceToEntity(i);
+		SH_REMOVE_MANUALHOOK(CalcIsAttackCriticalHelper, pEntity, SH_MEMBER(&g_CritManager, &CritManager::Hook_CalcIsAttackCriticalHelper), false);
+		SH_REMOVE_MANUALHOOK(CalcIsAttackCriticalHelperNoCrits, pEntity, SH_MEMBER(&g_CritManager, &CritManager::Hook_CalcIsAttackCriticalHelperNoCrits), false);
+
+		m_entsHooked.Set(i, false);
+	}
+
+	m_enabled = false;
+}
+
+void CritManager::OnEntityCreated(CBaseEntity *pEntity, const char *classname)
+{
+	if (!m_enabled)
+		return;
+
+	IServerUnknown *pUnknown = (IServerUnknown *)pEntity;
+	IServerNetworkable *pNetworkable = pUnknown->GetNetworkable();
+	if (!pNetworkable)
+		return;
+
+	if (!UTIL_ContainsDataTable(pNetworkable->GetServerClass()->m_pTable, TF_WEAPON_DATATABLE))
+		return;
+
+	SH_ADD_MANUALHOOK(CalcIsAttackCriticalHelper, pEntity, SH_MEMBER(&g_CritManager, &CritManager::Hook_CalcIsAttackCriticalHelper), false);
+	SH_ADD_MANUALHOOK(CalcIsAttackCriticalHelperNoCrits, pEntity, SH_MEMBER(&g_CritManager, &CritManager::Hook_CalcIsAttackCriticalHelperNoCrits), false);
+
+	m_entsHooked.Set(gamehelpers->EntityToBCompatRef(pEntity));
+}
+
+void CritManager::OnEntityDestroyed(CBaseEntity *pEntity)
+{
+	if (!m_enabled)
+		return;
+
+	int index = gamehelpers->EntityToBCompatRef(pEntity);
+	if (index < 0 || index >= MAX_EDICTS)
+		return;
+	
+	if (!m_entsHooked.IsBitSet(index))
+		return;
+
+	SH_REMOVE_MANUALHOOK(CalcIsAttackCriticalHelper, pEntity, SH_MEMBER(&g_CritManager, &CritManager::Hook_CalcIsAttackCriticalHelper), false);
+	SH_REMOVE_MANUALHOOK(CalcIsAttackCriticalHelperNoCrits, pEntity, SH_MEMBER(&g_CritManager, &CritManager::Hook_CalcIsAttackCriticalHelperNoCrits), false);
+
+	m_entsHooked.Set(index, false);
+}
+
+bool CritManager::Hook_CalcIsAttackCriticalHelper()
+{
+	return Hook_CalcIsAttackCriticalHelpers(false);
+}
+
+bool CritManager::Hook_CalcIsAttackCriticalHelperNoCrits()
+{
+	return Hook_CalcIsAttackCriticalHelpers(true);
+}
+
+bool CritManager::Hook_CalcIsAttackCriticalHelpers(bool noCrits)
+{
+	CBaseEntity *pWeapon = META_IFACEPTR(CBaseEntity);
+	
+	// If there's an invalid ent or invalid networkable here, we've got issues elsewhere.
+
+	IServerNetworkable *pNetWeapon = ((IServerUnknown *)pWeapon)->GetNetworkable();
+	ServerClass *pServerClass = pNetWeapon->GetServerClass();
+	if (!pServerClass)
+	{
+		g_pSM->LogError(myself, "Invalid server class on weapon.");
+		RETURN_META_VALUE(MRES_IGNORED, false);
 	}
 
 	sm_sendprop_info_t info;
-
-	if (!gamehelpers->FindSendPropInfo(pEdict->GetNetworkable()->GetServerClass()->GetName(), "m_hOwnerEntity", &info))
+	if (!gamehelpers->FindSendPropInfo(pServerClass->GetName(), "m_hOwnerEntity", &info))
 	{
-		g_pSM->LogMessage(myself, "Offset Error");
-		return Result_Ignore;
+		g_pSM->LogError(myself, "Could not find m_hOwnerEntity on %s", pServerClass->GetName());
+		RETURN_META_VALUE(MRES_IGNORED, false);
 	}
 
-	if (!g_critForward)
+	int returnValue;
+	if (noCrits)
 	{
-		g_pSM->LogMessage(myself, "Invalid Forward");
-		return Result_Ignore;
+		returnValue = SH_MCALL(pWeapon, CalcIsAttackCriticalHelperNoCrits)() ? 1 : 0;
+	}
+	else
+	{
+		returnValue = SH_MCALL(pWeapon, CalcIsAttackCriticalHelper)() ? 1 : 0;
 	}
 
-	int returnValue=0;
+	int ownerIndex = -1;
+	CBaseHandle &hndl = *(CBaseHandle *) ((intptr_t)pWeapon + info.actual_offset);
+	CBaseEntity *pHandleEntity = gamehelpers->ReferenceToEntity(hndl.GetEntryIndex());
 
-	CBaseHandle &hndl = *(CBaseHandle *)((uint8_t *)pEnt + info.actual_offset);
-	int index = CheckBaseHandle(hndl);
+	if (pHandleEntity != NULL && hndl == reinterpret_cast<IHandleEntity *>(pHandleEntity)->GetRefEHandle())
+	{
+		ownerIndex = hndl.GetEntryIndex();
+	}
 
-	g_critForward->PushCell(index); //Client index
-	g_critForward->PushCell(engine->IndexOfEdict(pEdict)); // Weapon index
-	g_critForward->PushString(pEdict->GetClassName()); //Weapon classname
+	g_critForward->PushCell(ownerIndex); //Client index
+	g_critForward->PushCell(gamehelpers->EntityToBCompatRef(pWeapon)); // Weapon index
+	g_critForward->PushString(gamehelpers->GetEntityClassname(pWeapon)); //Weapon classname
 	g_critForward->PushCellByRef(&returnValue); //return value
 
 	cell_t result = 0;
 
 	g_critForward->Execute(&result);
 
-	if (result)
+	if (result > Pl_Continue)
 	{
-		if (returnValue)
-		{
-			return Result_Crit;
-		}
-		else
-		{
-			return Result_NoCrit;
-		}
+		RETURN_META_VALUE(MRES_SUPERCEDE, returnValue);
 	}
-	else
-	{
-		return Result_Ignore;
-	}
-}
-
-DETOUR_DECL_MEMBER0(CalcIsAttackCriticalHelperMelee, bool)
-{
-	DetourResult result = DetourCallback((CBaseEntity *)this);
-
-	if (result == Result_Ignore)
-	{
-		return DETOUR_MEMBER_CALL(CalcIsAttackCriticalHelperMelee)();
-	}
-	else if (result == Result_NoCrit)
-	{
-		return 0;
-	}
-	else
-	{
-		return 1;
-	}
-}
-
-DETOUR_DECL_MEMBER0(CalcIsAttackCriticalHelper, bool)
-{
-	DetourResult result = DetourCallback((CBaseEntity *)this);
-
-	if (result == Result_Ignore)
-	{
-		return DETOUR_MEMBER_CALL(CalcIsAttackCriticalHelper)();
-	}
-	else if (result == Result_NoCrit)
-	{
-		return 0;
-	}
-	else
-	{
-		return 1;
-	}
-}
-
-DETOUR_DECL_MEMBER0(CalcIsAttackCriticalHelperBow, bool)
-{
-	DetourResult result = DetourCallback((CBaseEntity *)this);
-
-	if (result == Result_Ignore)
-	{
-		return DETOUR_MEMBER_CALL(CalcIsAttackCriticalHelperBow)();
-	}
-	else if (result == Result_NoCrit)
-	{
-		return 0;
-	}
-	else
-	{
-		return 1;
-	}
-}
-
-bool InitialiseCritDetours()
-{
-	calcIsAttackCriticalDetour = DETOUR_CREATE_MEMBER(CalcIsAttackCriticalHelper, "CalcCritical");
-	calcIsAttackCriticalMeleeDetour = DETOUR_CREATE_MEMBER(CalcIsAttackCriticalHelperMelee, "CalcCriticalMelee");
-	calcIsAttackCriticalBowDetour = DETOUR_CREATE_MEMBER(CalcIsAttackCriticalHelperBow, "CalcCriticalBow");
-
-	bool HookCreated = false;
-
-	if (calcIsAttackCriticalDetour != NULL)
-	{
-		calcIsAttackCriticalDetour->EnableDetour();
-		HookCreated = true;
-	}
-
-	if (calcIsAttackCriticalMeleeDetour != NULL)
-	{
-		calcIsAttackCriticalMeleeDetour->EnableDetour();
-		HookCreated = true;
-	}
-
-	if (calcIsAttackCriticalBowDetour != NULL)
-	{
-		calcIsAttackCriticalBowDetour->EnableDetour();
-		HookCreated = true;
-	}
-
-	if (HookCreated)
-	{
-		return true;
-	}
-
-	g_pSM->LogError(myself, "No critical hit forwards could be initialized - Disabled critical hit hooks");
-
-	return false;
-}
-
-void RemoveCritDetours()
-{
-	if (calcIsAttackCriticalDetour != NULL)
-	{
-		calcIsAttackCriticalDetour->Destroy();
-		calcIsAttackCriticalDetour = NULL;
-	}
-
-	if (calcIsAttackCriticalMeleeDetour != NULL)
-	{
-		calcIsAttackCriticalMeleeDetour->Destroy();
-		calcIsAttackCriticalMeleeDetour = NULL;
-	}
-
-	if (calcIsAttackCriticalBowDetour != NULL)
-	{
-		calcIsAttackCriticalBowDetour->Destroy();
-		calcIsAttackCriticalBowDetour = NULL;
-	}
+	
+	RETURN_META_VALUE(MRES_IGNORED, false);
 }

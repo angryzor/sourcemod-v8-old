@@ -322,7 +322,7 @@ static cell_t sm_FileExists(IPluginContext *pContext, const cell_t *params)
 
 	if (params[0] >= 2 && params[2] == 1)
 	{
-		return smcore.FileExists(name) ? 1 : 0;
+		return smcore.filesystem->FileExists(name) ? 1 : 0;
 	}
 
 	char realpath[PLATFORM_MAX_PATH];
@@ -424,6 +424,18 @@ static cell_t sm_FileSize(IPluginContext *pContext, const cell_t *params)
 	{
 		pContext->ThrowNativeErrorEx(err, NULL);
 		return -1;
+	}
+
+	if (params[0] >= 2 && params[2] == 1)
+	{
+		if (smcore.filesystem->FileExists(name))
+		{
+			return smcore.filesystem->Size(name);
+		}
+		else
+		{
+			return -1;
+		}
 	}
 
 	char realpath[PLATFORM_MAX_PATH];

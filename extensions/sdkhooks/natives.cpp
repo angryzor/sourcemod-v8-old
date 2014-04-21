@@ -57,10 +57,20 @@ cell_t Native_Hook(IPluginContext *pContext, const cell_t *params)
 			pContext->ThrowNativeError("Hook type not supported on this game");
 			break;
 		case HookRet_BadEntForHookType:
-			pContext->ThrowNativeError("Hook type not valid for this type of entity (%s)",
-				PEntityOfEntIndex(gamehelpers->ReferenceToIndex(params[1]))->GetClassName()
-				);
+		{
+			CBaseEntity *pEnt = gamehelpers->ReferenceToEntity(params[1]);
+			const char *pClassname = pEnt ? gamehelpers->GetEntityClassname(pEnt) : NULL;
+			if (!pClassname)
+			{
+				pContext->ThrowNativeError("Hook type not valid for this type of entity (%i).", entity);
+			}
+			else
+			{
+				pContext->ThrowNativeError("Hook type not valid for this type of entity (%i/%s)", entity, pClassname);
+			}
+			
 			break;
+		}
 	}
 
 	return 0;
@@ -83,12 +93,7 @@ cell_t Native_Unhook(IPluginContext *pContext, const cell_t *params)
 	int entity = (int)params[1];
 	SDKHookType type = (SDKHookType)params[2];
 	IPluginFunction *callback = pContext->GetFunctionById(params[3]);
-
-	for(int i = g_HookList.Count() - 1; i >= 0; i--)
-	{
-		if(g_HookList[i].entity == entity && g_HookList[i].type == type && g_HookList[i].callback == callback)
-			g_Interface.Unhook(i);
-	}
+	g_Interface.Unhook(entity, type, callback);
 
 	return 0;
 }
@@ -99,38 +104,45 @@ cell_t Native_TakeDamage(IPluginContext *pContext, const cell_t *params)
 #if !defined SH_DECL_MANUALEXTERN1
 	pContext->ThrowNativeError("SDKHooks_TakeDamage is not supported on this engine.");
 #else
-	CBaseEntity *pVictim = UTIL_GetCBaseEntity(params[1]);
+	CBaseEntity *pVictim = gamehelpers->ReferenceToEntity(params[1]);
 	if (!pVictim)
 		return pContext->ThrowNativeError("Invalid entity index %d for victim", params[1]);
 	
-	CBaseEntity *pInflictor = UTIL_GetCBaseEntity(params[2]);
+	CBaseEntity *pInflictor = gamehelpers->ReferenceToEntity(params[2]);
 	if (!pInflictor)
 		return pContext->ThrowNativeError("Invalid entity index %d for inflictor", params[2]);
 
-	CBaseEntity *pAttacker = NULL;
+	CBaseEntity *pAttacker;
 	if (params[3] != -1)
 	{
-		pAttacker = UTIL_GetCBaseEntity(params[3]);
+		pAttacker = gamehelpers->ReferenceToEntity(params[3]);
 		if (!pAttacker)
 		{
 			return pContext->ThrowNativeError("Invalid entity index %d for attackerr", params[3]);
 		}
 	}
+	else
+	{
+		pAttacker = NULL;
+	}
 
 	float flDamage = sp_ctof(params[4]);
 	int iDamageType = params[5];
 
-	CBaseEntity *pWeapon = NULL;
+	CBaseEntity *pWeapon;
 	if (params[6] != -1)
 	{
-		pAttacker = UTIL_GetCBaseEntity(params[6]);
-		if (!pAttacker)
+		pWeapon = gamehelpers->ReferenceToEntity(params[6]);
+		if (!pWeapon)
 		{
 			return pContext->ThrowNativeError("Invalid entity index %d for weapon", params[6]);
 		}
 	}
+	else
+	{
+		pWeapon = NULL;
+	}
 
-	Vector vecDamageForce = Vector(0.0f, 0.0f, 0.0f);
 	cell_t *addr;
 	int err;
 	if ((err = pContext->LocalToPhysAddr(params[7], &addr)) != SP_ERROR_NONE)
@@ -138,26 +150,29 @@ cell_t Native_TakeDamage(IPluginContext *pContext, const cell_t *params)
 		return pContext->ThrowNativeError("Could not read damageForce vector");
 	}
 
+	Vector vecDamageForce;
 	if (addr != pContext->GetNullRef(SP_NULL_VECTOR))
 	{
-		vecDamageForce = Vector(
-			sp_ctof(addr[0]),
-			sp_ctof(addr[1]),
-			sp_ctof(addr[2]));
+		vecDamageForce.Init(sp_ctof(addr[0]), sp_ctof(addr[1]), sp_ctof(addr[2]));
+	}
+	else
+	{
+		vecDamageForce.Init();
 	}
 
-	Vector vecDamagePosition = vec3_origin;
 	if ((err = pContext->LocalToPhysAddr(params[8], &addr)) != SP_ERROR_NONE)
 	{
 		return pContext->ThrowNativeError("Could not read damagePosition vector");
 	}
 
+	Vector vecDamagePosition;
 	if (addr != pContext->GetNullRef(SP_NULL_VECTOR))
 	{
-		vecDamagePosition = Vector(
-			sp_ctof(addr[0]),
-			sp_ctof(addr[1]),
-			sp_ctof(addr[2]));
+		vecDamagePosition.Init(sp_ctof(addr[0]), sp_ctof(addr[1]), sp_ctof(addr[2]));
+	}
+	else
+	{
+		 vecDamagePosition = vec3_origin;
 	}
 
 	CTakeDamageInfoHack info(pInflictor, pAttacker, flDamage, iDamageType, pWeapon, vecDamageForce, vecDamagePosition);
@@ -173,21 +188,25 @@ cell_t Native_DropWeapon(IPluginContext *pContext, const cell_t *params)
 #if !defined SH_DECL_MANUALEXTERN1
 	pContext->ThrowNativeError("SDKHooks_DropWeapon is not supported on this engine.");
 #else
-	CBaseEntity *pPlayer = UTIL_GetCBaseEntity(params[1], true);
+	CBaseEntity *pPlayer = gamehelpers->ReferenceToEntity(params[1]);
 	if (!pPlayer)
 		return pContext->ThrowNativeError("Invalid client index %d", params[1]);
+
+	IGamePlayer *pGamePlayer = playerhelpers->GetGamePlayer(gamehelpers->ReferenceToIndex(params[1]));
+	if (!pGamePlayer || !pGamePlayer->IsInGame())
+		return pContext->ThrowNativeError("Client index %d not in game", params[1]);
 	
-	CBaseEntity *pWeapon = UTIL_GetCBaseEntity(params[2]);
+	CBaseEntity *pWeapon = gamehelpers->ReferenceToEntity(params[2]);
 	if (!pWeapon)
 		return pContext->ThrowNativeError("Invalid entity index %d for weapon", params[2]);
 
-	sm_sendprop_info_t spi;
 	IServerUnknown *pUnk = (IServerUnknown *)pWeapon;
 	IServerNetworkable *pNet = pUnk->GetNetworkable();
 
-	if (!UTIL_FindDataTable(pNet->GetServerClass()->m_pTable, "DT_BaseCombatWeapon", &spi, 0))
+	if (!UTIL_ContainsDataTable(pNet->GetServerClass()->m_pTable, "DT_BaseCombatWeapon"))
 		return pContext->ThrowNativeError("Entity index %d is not a weapon", params[2]);
 
+	sm_sendprop_info_t spi;
 	if (!gamehelpers->FindSendPropInfo("CBaseCombatWeapon", "m_hOwnerEntity", &spi))
 		return pContext->ThrowNativeError("Invalid entity index %d for weapon", params[2]);
 

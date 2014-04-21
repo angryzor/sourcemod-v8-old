@@ -143,6 +143,7 @@ enum {
 	TF_CUSTOM_MERASMUS_ZAP,
 	TF_CUSTOM_MERASMUS_DECAPITATION,
 	TF_CUSTOM_CANNONBALL_PUSH,
+	TF_CUSTOM_TAUNT_ALLCLASS_GUITAR_RIFF,
 };
 
 // Weapon codes as used in some events, such as player_death
@@ -240,6 +241,13 @@ enum {
 	TF_WEAPON_GRENADE_STICKY_BALL,
 	TF_WEAPON_SHOTGUN_BUILDING_RESCUE,
 	TF_WEAPON_CANNON,
+	TF_WEAPON_THROWABLE,
+	TF_WEAPON_GRENADE_THROWABLE,
+	TF_WEAPON_PDA_SPY_BUILD,
+	TF_WEAPON_GRENADE_WATERBALLOON,
+	TF_WEAPON_HARVESTER_SAW,
+	TF_WEAPON_SPELLBOOK,
+	TF_WEAPON_SPELLBOOK_PROJECTILE,
 };
 
 // TF2 Weapon Loadout Slots
@@ -427,7 +435,7 @@ stock TF2_RemoveWeaponSlot(client, slot)
 	while ((weaponIndex = GetPlayerWeaponSlot(client, slot)) != -1)
 	{
 		RemovePlayerItem(client, weaponIndex);
-		RemoveEdict(weaponIndex);
+		AcceptEntityInput(weaponIndex, "Kill");
 	}
 }
 
@@ -461,6 +469,7 @@ stock TF2_GetPlayerConditionFlags(client)
  * Check whether or not a condition is set on a player
  *
  * @param client		Player's index.
+ * @param cond			TFCond constant
  * @return				True if set, false otherwise
  */
 stock bool:TF2_IsPlayerInCondition(client, TFCond:cond)

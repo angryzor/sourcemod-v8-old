@@ -36,21 +36,21 @@
 			}
 			"PreThink"
 			{
-				"windows"	"357"
-				"linux"		"358"
-				"mac"		"358"
+				"windows"	"363"
+				"linux"		"364"
+				"mac"		"364"
 			}
 			"PostThink"
 			{
-				"windows"	"358"
-				"linux"		"359"
-				"mac"		"359"
+				"windows"	"364"
+				"linux"		"365"
+				"mac"		"365"
 			}
 			"Reload"
 			{
-				"windows"	"282"
-				"linux"		"283"
-				"mac"		"283"
+				"windows"	"307"
+				"linux"		"313"
+				"mac"		"313"
 			}
 			"SetTransmit"
 			{
@@ -108,57 +108,34 @@
 			}
 			"Weapon_CanSwitchTo"
 			{
-				"windows"	"282"
-				"linux"		"283"
-				"mac"		"283"
+				"windows"	"284"
+				"linux"		"285"
+				"mac"		"285"
 			}
 			"Weapon_CanUse"
 			{
-				"windows"	"276"
-				"linux"		"277"
-				"mac"		"277"
+				"windows"	"278"
+				"linux"		"279"
+				"mac"		"279"
 			}
 			"Weapon_Drop"
+			{
+				"windows"	"281"
+				"linux"		"282"
+				"mac"		"282"
+			}
+			"Weapon_Equip"
 			{
 				"windows"	"279"
 				"linux"		"280"
 				"mac"		"280"
 			}
-			"Weapon_Equip"
-			{
-				"windows"	"277"
-				"linux"		"278"
-				"mac"		"278"
-			}
 			"Weapon_Switch"
 			{
-				"windows"	"280"
-				"linux"		"281"
-				"mac"		"281"
+				"windows"	"282"
+				"linux"		"283"
+				"mac"		"283"
 			}
-			
-			
-			// no longer used
-			"UpdateOnRemove"
-			{
-				"windows"	"109"
-				"linux"		"110"
-				"mac"		"110"
-			}
-			//
-		}
-		
-		"Signatures"
-		{
-			// no longer used
-			"IEntityFactoryDictionary"
-			{
-				"library"	"server"
-				"windows"	"\xB8\x01\x00\x00\x00\x84\x2A\x2A\x2A\x2A\x2A\x75\x1D\x09\x2A\x2A\x2A\x2A\x2A\xB9\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\x68\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\x83\xC4\x04\xB8\x2A\x2A\x2A\x2A\xC3"
-				"linux"		"@_Z23EntityFactoryDictionaryv"
-				"mac"		"@_Z23EntityFactoryDictionaryv"
-			}
-			//
 		}
 	}
 	
@@ -168,9 +145,30 @@
 		{
 			"EntityListeners"
 			{
-				"windows"	"196644"
 				"linux"		"196644"
 				"mac"		"196644"
+			}
+		}
+		
+		"Addresses"
+		{
+			"EntityListenersPtr"
+			{
+				"windows"
+				{
+					"signature"	"EntityListenersFinder"
+					"read"		"18"
+				}
+			}
+		}
+		
+		"Signatures"
+		{
+			// Find call to AddListenerEntity in CPhysSaveRestoreBlockHandler::PreRestore (virtual)
+			"EntityListenersFinder"
+			{
+				"library"	"server"
+				"windows"	"\x55\x8B\xEC\x8B\x0D\x2A\x2A\x2A\x2A\x33\xC0\x56\x85\xC9\x7E\x32\x8B"
 			}
 		}
 	}

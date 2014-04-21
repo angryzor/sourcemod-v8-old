@@ -140,6 +140,39 @@ static cell_t RemovePlayerItem(IPluginContext *pContext, const cell_t *params)
 	return ret ? 1 : 0;
 }
 
+#if SOURCE_ENGINE == SE_CSGO
+class CEconItemView;
+static cell_t GiveNamedItem(IPluginContext *pContext, const cell_t *params)
+{
+	static ValveCall *pCall = NULL;
+	if (!pCall)
+	{
+		ValvePassInfo pass[5];
+		InitPass(pass[0], Valve_String, PassType_Basic, PASSFLAG_BYVAL);
+		InitPass(pass[1], Valve_POD, PassType_Basic, PASSFLAG_BYVAL);
+		InitPass(pass[2], Valve_POD, PassType_Basic, PASSFLAG_BYVAL);
+		InitPass(pass[3], Valve_Bool, PassType_Basic, PASSFLAG_BYVAL);
+		InitPass(pass[4], Valve_CBaseEntity, PassType_Basic, PASSFLAG_BYVAL);
+		if (!CreateBaseCall("GiveNamedItem", ValveCall_Player, &pass[4], pass, 4, &pCall))
+		{
+			return pContext->ThrowNativeError("\"GiveNamedItem\" not supported by this mod");
+		} else if (!pCall) {
+			return pContext->ThrowNativeError("\"GiveNamedItem\" wrapper failed to initialize");
+		}
+	}
+
+	CBaseEntity *pEntity = NULL;
+	START_CALL();
+	DECODE_VALVE_PARAM(1, thisinfo, 0);
+	DECODE_VALVE_PARAM(2, vparams, 0);
+	DECODE_VALVE_PARAM(3, vparams, 1);
+	*(CEconItemView **)(vptr + 12) = NULL;
+	*(bool *)(vptr + 16) = false;
+	FINISH_CALL_SIMPLE(&pEntity);
+
+	return gamehelpers->EntityToBCompatRef(pEntity);
+}
+#else
 static cell_t GiveNamedItem(IPluginContext *pContext, const cell_t *params)
 {
 	static ValveCall *pCall = NULL;
@@ -166,6 +199,7 @@ static cell_t GiveNamedItem(IPluginContext *pContext, const cell_t *params)
 
 	return gamehelpers->EntityToBCompatRef(pEntity);
 }
+#endif
 
 static cell_t GetPlayerWeaponSlot(IPluginContext *pContext, const cell_t *params)
 {
@@ -198,16 +232,39 @@ static cell_t IgniteEntity(IPluginContext *pContext, const cell_t *params)
 	static ValveCall *pCall = NULL;
 	if (!pCall)
 	{
-		ValvePassInfo pass[4];
-		InitPass(pass[0], Valve_Float, PassType_Float, PASSFLAG_BYVAL);
-		InitPass(pass[1], Valve_Bool, PassType_Basic, PASSFLAG_BYVAL);
-		InitPass(pass[2], Valve_Float, PassType_Float, PASSFLAG_BYVAL);
-		InitPass(pass[3], Valve_Bool, PassType_Basic, PASSFLAG_BYVAL);
-		if (!CreateBaseCall("Ignite", ValveCall_Entity, NULL, pass, 4, &pCall))
+#if SOURCE_ENGINE == SE_SDK2013
+		if (!strcmp(g_pSM->GetGameFolderName(), "nmrih"))
 		{
-			return pContext->ThrowNativeError("\"Ignite\" not supported by this mod");
-		} else if (!pCall) {
-			return pContext->ThrowNativeError("\"Ignite\" wrapper failed to initialize");
+			ValvePassInfo pass[6];
+			InitPass(pass[0], Valve_Float, PassType_Float, PASSFLAG_BYVAL);
+			InitPass(pass[1], Valve_Bool, PassType_Basic, PASSFLAG_BYVAL);
+			InitPass(pass[2], Valve_Float, PassType_Float, PASSFLAG_BYVAL);
+			InitPass(pass[3], Valve_Bool, PassType_Basic, PASSFLAG_BYVAL);
+			InitPass(pass[4], Valve_POD, PassType_Basic, PASSFLAG_BYVAL);
+			InitPass(pass[5], Valve_POD, PassType_Basic, PASSFLAG_BYVAL);
+			if (!CreateBaseCall("Ignite", ValveCall_Entity, NULL, pass, 6, &pCall))
+			{
+				return pContext->ThrowNativeError("\"Ignite\" not supported by this mod");
+			}
+			else if (!pCall) {
+				return pContext->ThrowNativeError("\"Ignite\" wrapper failed to initialize");
+			}
+		}
+		else
+#endif // SDK2013
+		{
+			ValvePassInfo pass[4];
+			InitPass(pass[0], Valve_Float, PassType_Float, PASSFLAG_BYVAL);
+			InitPass(pass[1], Valve_Bool, PassType_Basic, PASSFLAG_BYVAL);
+			InitPass(pass[2], Valve_Float, PassType_Float, PASSFLAG_BYVAL);
+			InitPass(pass[3], Valve_Bool, PassType_Basic, PASSFLAG_BYVAL);
+			if (!CreateBaseCall("Ignite", ValveCall_Entity, NULL, pass, 4, &pCall))
+			{
+				return pContext->ThrowNativeError("\"Ignite\" not supported by this mod");
+			}
+			else if (!pCall) {
+				return pContext->ThrowNativeError("\"Ignite\" wrapper failed to initialize");
+			}
 		}
 	}
 
@@ -217,6 +274,15 @@ static cell_t IgniteEntity(IPluginContext *pContext, const cell_t *params)
 	DECODE_VALVE_PARAM(3, vparams, 1);
 	DECODE_VALVE_PARAM(4, vparams, 2);
 	DECODE_VALVE_PARAM(5, vparams, 3);
+
+#if SOURCE_ENGINE == SE_SDK2013
+	if (!strcmp(g_pSM->GetGameFolderName(), "nmrih"))
+	{
+		*(int *) (vptr + 14) = 0;
+		*(int *) (vptr + 18) = 0;
+	}
+#endif // SDK2013
+
 	FINISH_CALL_SIMPLE(NULL);
 
 	return 1;
@@ -532,7 +598,7 @@ static cell_t SlapPlayer(IPluginContext *pContext, const cell_t *params)
 			CellRecipientFilter rf;
 			rf.SetToReliable(true);
 			rf.Initialize(player_list, total_players);
-#if SOURCE_ENGINE == SE_ORANGEBOXVALVE || SOURCE_ENGINE == SE_CSS
+#if SOURCE_ENGINE == SE_CSS || SOURCE_ENGINE == SE_HL2DM || SOURCE_ENGINE == SE_DODS || SOURCE_ENGINE == SE_SDK2013 || SOURCE_ENGINE == SE_TF2
 			engsound->EmitSound(rf, params[1], CHAN_AUTO, sound_name, VOL_NORM, ATTN_NORM, 0, PITCH_NORM, 0, &pos);
 #elif SOURCE_ENGINE < SE_PORTAL2
 			engsound->EmitSound(rf, params[1], CHAN_AUTO, sound_name, VOL_NORM, ATTN_NORM, 0, PITCH_NORM, &pos);
@@ -548,10 +614,10 @@ static cell_t SlapPlayer(IPluginContext *pContext, const cell_t *params)
 		if (frag_prop)
 		{
 			datamap_t *pMap = gamehelpers->GetDataMap(pEntity);
-			typedescription_t *pType = gamehelpers->FindInDataMap(pMap, frag_prop);
-			if (pType != NULL)
+			sm_datatable_info_t info;
+			if (gamehelpers->FindDataMapInfo(pMap, frag_prop, &info))
 			{
-				s_frag_offs = GetTypeDescOffs(pType);
+				s_frag_offs = info.actual_offset;
 			}
 		}
 		if (!s_frag_offs)
@@ -684,10 +750,13 @@ static cell_t NativeFindEntityByClassname(IPluginContext *pContext, const cell_t
 	static int offset = -1;
 	if (offset == -1)
 	{
-		offset = GetTypeDescOffs(
-			gamehelpers->FindInDataMap(gamehelpers->GetDataMap(pEntity),
-			"m_iClassname")
-			);
+		sm_datatable_info_t info;
+		if (!gamehelpers->FindDataMapInfo(gamehelpers->GetDataMap(pEntity), "m_iClassname", &info))
+		{
+			return -1;
+		}
+		
+		offset = info.actual_offset;
 	}
 
 	string_t s;
@@ -756,7 +825,15 @@ static cell_t FindEntityByClassname(IPluginContext *pContext, const cell_t *para
 			if (!bProbablyNoFEBC)
 			{
 				bProbablyNoFEBC = true;
-				g_pSM->LogError(myself, "%s, falling back to IServerTools method.", error);
+
+				// CreateBaseCall above abstracts all of the gamedata logic, but we need to know if the key was even found.
+				// We don't want to log an error if key isn't present (knowing falling back to native method), only throw
+				// error if signature/symbol was not found.
+				void *dummy;
+				if (g_pGameConf->GetMemSig("FindEntityByClassname", &dummy))
+				{
+					g_pSM->LogError(myself, "%s, falling back to IServerTools method.", error);
+				}
 			}
 			return NativeFindEntityByClassname(pContext, params);
 #else
@@ -1070,6 +1147,32 @@ static cell_t GetPlayerDecalFile(IPluginContext *pContext, const cell_t *params)
 	return 1;
 }
 
+static cell_t GetPlayerJingleFile(IPluginContext *pContext, const cell_t *params)
+{
+	IGamePlayer *player = playerhelpers->GetGamePlayer(params[1]);
+	if (player == NULL)
+	{
+		return pContext->ThrowNativeError("Invalid client index %d", params[1]);
+	}
+	if (!player->IsInGame())
+	{
+		return pContext->ThrowNativeError("Client %d is not in game", params[1]);
+	}
+
+	player_info_t info;
+	char *buffer;
+
+	if (!GetPlayerInfo(params[1], &info) || !info.customFiles[1])
+	{
+		return 0;
+	}
+
+	pContext->LocalToString(params[2], &buffer);
+	Q_binarytohex((byte *)&info.customFiles[1], sizeof(info.customFiles[1]), buffer, params[3]);
+
+	return 1;
+}
+
 static cell_t GetServerNetStats(IPluginContext *pContext, const cell_t *params)
 {
 	if (iserver == NULL)
@@ -1230,6 +1333,34 @@ static cell_t GetPlayerResourceEntity(IPluginContext *pContext, const cell_t *pa
 	return -1;
 }
 
+static cell_t GivePlayerAmmo(IPluginContext *pContext, const cell_t *params)
+{
+	static ValveCall *pCall = NULL;
+	if (!pCall)
+	{
+		ValvePassInfo pass[3];
+		InitPass(pass[0], Valve_POD, PassType_Basic, PASSFLAG_BYVAL);
+		InitPass(pass[1], Valve_POD, PassType_Basic, PASSFLAG_BYVAL);
+		InitPass(pass[2], Valve_Bool, PassType_Basic, PASSFLAG_BYVAL);
+		if (!CreateBaseCall("GiveAmmo", ValveCall_Player, &pass[0], pass, 3, &pCall))
+		{
+			return pContext->ThrowNativeError("\"GiveAmmo\" not supported by this mod");
+		} else if (!pCall) {
+			return pContext->ThrowNativeError("\"GiveAmmo\" wrapper failed to initialize");
+		}
+	}
+
+	int ammoGiven;
+	START_CALL();
+	DECODE_VALVE_PARAM(1, thisinfo, 0);
+	DECODE_VALVE_PARAM(2, vparams, 0);
+	DECODE_VALVE_PARAM(3, vparams, 1);
+	DECODE_VALVE_PARAM(4, vparams, 2);
+	FINISH_CALL_SIMPLE(&ammoGiven);
+
+	return ammoGiven;
+}
+
 sp_nativeinfo_t g_Natives[] = 
 {
 	{"ExtinguishEntity",		ExtinguishEntity},
@@ -1253,10 +1384,12 @@ sp_nativeinfo_t g_Natives[] =
 	{"GetClientAimTarget",		sm_GetClientAimTarget},
 	{"SetEntityModel",			sm_SetEntityModel},
 	{"GetPlayerDecalFile",		GetPlayerDecalFile},
+	{"GetPlayerJingleFile",		GetPlayerJingleFile},
 	{"GetServerNetStats",		GetServerNetStats},
 	{"EquipPlayerWeapon",		WeaponEquip},
 	{"ActivateEntity",			ActivateEntity},
 	{"SetClientInfo",			SetClientInfo},
 	{"GetPlayerResourceEntity", GetPlayerResourceEntity},
+	{"GivePlayerAmmo",		GivePlayerAmmo},
 	{NULL,						NULL},
 };

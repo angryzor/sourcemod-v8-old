@@ -153,6 +153,9 @@ static char *extensions[] = { ".inc", ".p", ".pawn" };
     *ext='\0';                  /* restore filename */
     return FALSE;
   } /* if */
+  if (sc_showincludes && sc_status==statFIRST) {
+    fprintf(stdout, "Note: including file: %s\n", name);
+  }
   PUSHSTK_P(inpf);
   PUSHSTK_P(inpfname);          /* pointer to current file name */
   PUSHSTK_P(curlibrary);
@@ -416,7 +419,7 @@ static void stripcom(unsigned char *line)
         #if !defined SC_LIGHT
           /* collect the comment characters in a string */
           if (icomment==2) {
-            if (skipstar && (*line!='\0' && *line<=' ' || *line=='*')) {
+            if (skipstar && ((*line!='\0' && *line<=' ') || *line=='*')) {
               /* ignore leading whitespace and '*' characters */
             } else if (commentidx<COMMENT_LIMIT+COMMENT_MARGIN-1) {
               comment[commentidx++]=(char)((*line!='\n') ? *line : ' ');
@@ -1232,7 +1235,7 @@ static int command(void)
         sym=findloc(str);
         if (sym==NULL)
           sym=findglb(str,sSTATEVAR);
-        if (sym==NULL || sym->ident!=iFUNCTN && sym->ident!=iREFFUNC && (sym->usage & uDEFINE)==0) {
+        if (sym==NULL || (sym->ident!=iFUNCTN && sym->ident!=iREFFUNC && (sym->usage & uDEFINE)==0)) {
           error(17,str);        /* undefined symbol */
         } else {
           outval(sym->addr,FALSE);
@@ -1668,7 +1671,7 @@ static void substallpatterns(unsigned char *line,int buffersize)
 	if (strncmp((char*)start,"defined",7)==0 && !isalpha((char)*(start+7))) {
       start+=7;         /* skip "defined" */
       /* skip white space & parantheses */
-      while (*start<=' ' && *start!='\0' || *start=='(')
+      while ((*start<=' ' && *start!='\0') || *start=='(')
         start++;
       /* skip the symbol behind it */
       while (alphanum(*start))
@@ -1852,7 +1855,7 @@ char *sc_tokens[] = {
          "assert", "*begin", "break", "case", "cellsof", "chars", "const", "continue", "default",
          "defined", "do", "else", "*end", "enum", "exit", "for", "forward", "funcenum", "functag", "goto",
          "if", "native", "new", "decl", "operator", "public", "return", "sizeof",
-         "sleep", "state", "static", "stock", "struct", "switch", "tagof", "*then", "while",
+         "sleep", "static", "stock", "struct", "switch", "tagof", "*then", "while",
          "#assert", "#define", "#else", "#elseif", "#emit", "#endif", "#endinput",
          "#endscript", "#error", "#file", "#if", "#include", "#line", "#pragma",
          "#tryinclude", "#undef",
@@ -1974,7 +1977,7 @@ SC_FUNC int lex(cell *lexvalue,char **lexsym)
         error(220);
       } /* if */
     } /* if */
-  } else if (*lptr=='\"' || *lptr==sc_ctrlchar && *(lptr+1)=='\"')
+  } else if (*lptr=='\"' || (*lptr==sc_ctrlchar && *(lptr+1)=='\"'))
   {                                     /* unpacked string literal */
     _lextok=tSTRING;
     stringflags= (*lptr==sc_ctrlchar) ? RAWMODE : 0;
@@ -1988,9 +1991,9 @@ SC_FUNC int lex(cell *lexvalue,char **lexsym)
       lptr+=1;          /* skip final quote */
     else
       error(37);        /* invalid (non-terminated) string */
-  } else if (*lptr=='!' && *(lptr+1)=='\"'
-             || *lptr=='!' && *(lptr+1)==sc_ctrlchar && *(lptr+2)=='\"'
-             || *lptr==sc_ctrlchar && *(lptr+1)=='!' && *(lptr+2)=='\"')
+  } else if ((*lptr=='!' && *(lptr+1)=='\"')
+             || (*lptr=='!' && *(lptr+1)==sc_ctrlchar && *(lptr+2)=='\"')
+             || (*lptr==sc_ctrlchar && *(lptr+1)=='!' && *(lptr+2)=='\"'))
   {                                     /* packed string literal */
     _lextok=tSTRING;
     stringflags= (*lptr==sc_ctrlchar || *(lptr+1)==sc_ctrlchar) ? RAWMODE : 0;
@@ -2081,7 +2084,7 @@ SC_FUNC int matchtoken(int token)
   int tok;
 
   tok=lex(&val,&str);
-  if (tok==token || token==tTERM && (tok==';' || tok==tENDEXPR)) {
+  if (tok==token || (token==tTERM && (tok==';' || tok==tENDEXPR))) {
     return 1;
   } else if (!sc_needsemicolon && token==tTERM && (_lexnewline || !freading)) {
     /* Push "tok" back, because it is the token following the implicit statement
@@ -2555,8 +2558,8 @@ static symbol *find_symbol(const symbol *root,const char *name,int fnumber,int a
     {
       assert(sym->states==NULL || sym->states->next!=NULL); /* first element of the state list is the "root" */
       if (sym->ident==iFUNCTN
-          || automaton<0 && sym->states==NULL
-          || automaton>=0 && sym->states!=NULL && state_getfsa(sym->states->next->index)==automaton)
+          || (automaton<0 && sym->states==NULL)
+          || (automaton>=0 && sym->states!=NULL && state_getfsa(sym->states->next->index)==automaton))
       {
         if (cmptag==NULL)
           return sym;   /* return first match */
@@ -2785,8 +2788,8 @@ SC_FUNC symbol *addvariable2(const char *name,cell addr,int ident,int vclass,int
    * the symbol without states if no symbol with states exists).
    */
   assert(vclass!=sGLOBAL || (sym=findglb(name,sGLOBAL))==NULL || (sym->usage & uDEFINE)==0
-         || sym->ident==iFUNCTN && sym==curfunc
-         || sym->states==NULL && sc_curstates>0);
+         || (sym->ident==iFUNCTN && sym==curfunc)
+         || (sym->states==NULL && sc_curstates>0));
 
   if (ident==iARRAY || ident==iREFARRAY) {
     symbol *parent=NULL,*top;

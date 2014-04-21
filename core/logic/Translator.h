@@ -33,7 +33,7 @@
 #define _INCLUDE_SOURCEMOD_TRANSLATOR_H_
 
 #include "common_logic.h"
-#include <sm_trie_tpl.h>
+#include <sm_stringhashmap.h>
 #include <sh_string.h>
 #include <sh_vector.h>
 #include "sm_memtable.h"
@@ -79,7 +79,7 @@ private:
 	void ParseError(const char *message, ...);
 	void ParseWarning(const char *message, ...);
 private:
-	KTrie<int> m_PhraseLookup;
+	StringHashMap<int> m_PhraseLookup;
 	String m_File;
 	Translator *m_pTranslator;
 	PhraseParseState m_ParseState;
@@ -115,7 +115,6 @@ public: // ITextListener_SMC
 	SMCResult ReadSMC_KeyValue(const SMCStates *states, const char *key, const char *value);
 	SMCResult ReadSMC_LeavingSection(const SMCStates *states);
 public:
-	void RebuildLanguageDatabase(const char *lang_header_file);
 	unsigned int FindOrAddPhraseFile(const char *phrase_file);
 	BaseStringTable *GetStringTable();
 	unsigned int GetLanguageCount();
@@ -146,14 +145,15 @@ public: //ITranslator
 		size_t *pOutLength,
 		const char **pFailPhrase);
 	bool GetLanguageInfo(unsigned int number, const char **code, const char **name);
+	void RebuildLanguageDatabase();
 private:
 	bool AddLanguage(const char *langcode, const char *description);
 private:
 	CVector<Language *> m_Languages;
 	CVector<CPhraseFile *> m_Files;
 	BaseStringTable *m_pStringTab;
-	KTrie<unsigned int> m_LCodeLookup;
-	KTrie<unsigned int> m_LAliases;
+	StringHashMap<unsigned int> m_LCodeLookup;
+	StringHashMap<unsigned int> m_LAliases;
 	bool m_InLanguageSection;
 	String m_CustomError;
 	unsigned int m_ServerLang;

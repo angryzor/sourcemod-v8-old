@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -34,9 +34,14 @@
 
 #include <IShareSys.h>
 #include <IHandleSys.h>
+#include <am-string.h>
+#include <am-utility.h>
+#include <am-refcounting.h>
 #include <sh_list.h>
-#include <sm_trie_tpl.h>
+#include <sm_stringhashmap.h>
+#include <sm_namehashset.h>
 #include "common_logic.h"
+#include "Native.h"
 
 using namespace SourceHook;
 
@@ -61,30 +66,7 @@ struct IfaceInfo
 };
 
 class CNativeOwner;
-struct NativeEntry;
 class CPlugin;
-
-struct ReplaceNative
-{
-	CNativeOwner *owner;
-	SPVM_NATIVE_FUNC func;
-};
-
-struct FakeNative
-{
-	char name[64];
-	IPluginContext *ctx;
-	IPluginFunction *call;
-};
-
-struct NativeEntry
-{
-	CNativeOwner *owner;
-	SPVM_NATIVE_FUNC func;
-	const char *name;
-	ReplaceNative replacement;
-	FakeNative *fake;
-};
 
 struct Capability
 {
@@ -138,24 +120,23 @@ public:
 	}
 public:
 	void BindNativesToPlugin(CPlugin *pPlugin, bool bCoreOnly);
-	void BindNativeToPlugin(CPlugin *pPlugin, NativeEntry *pEntry);
-	NativeEntry *AddFakeNative(IPluginFunction *pFunc, const char *name, SPVM_FAKENATIVE_FUNC func);
-	NativeEntry *FindNative(const char *name);
+	void BindNativeToPlugin(CPlugin *pPlugin, const ke::Ref<Native> &pEntry);
+	ke::PassRef<Native> AddFakeNative(IPluginFunction *pFunc, const char *name, SPVM_FAKENATIVE_FUNC func);
+	ke::PassRef<Native> FindNative(const char *name);
 private:
-	NativeEntry *AddNativeToCache(CNativeOwner *pOwner, const sp_nativeinfo_t *ntv);
+	ke::PassRef<Native> AddNativeToCache(CNativeOwner *pOwner, const sp_nativeinfo_t *ntv);
 	void ClearNativeFromCache(CNativeOwner *pOwner, const char *name);
-	void BindNativeToPlugin(CPlugin *pPlugin, 
-		sp_native_t *ntv, 
-		uint32_t index, 
-		NativeEntry *pEntry);
+	void BindNativeToPlugin(CPlugin *pPlugin, sp_native_t *ntv,  uint32_t index, const ke::Ref<Native> &pEntry);
 private:
+	typedef NameHashSet<ke::Ref<Native>, Native> NativeCache;
+
 	List<IfaceInfo> m_Interfaces;
 	HandleType_t m_TypeRoot;
 	IdentityToken_t m_IdentRoot;
 	HandleType_t m_IfaceType;
 	IdentityType_t m_CoreType;
-	KTrie<NativeEntry *> m_NtvCache;
-	KTrie<Capability> m_caps;
+	NativeCache m_NtvCache;
+	StringHashMap<Capability> m_caps;
 };
 
 extern ShareSystem g_ShareSys;

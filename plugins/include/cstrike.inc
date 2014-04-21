@@ -47,26 +47,26 @@
 
 enum CSRoundEndReason
 {
-	CSRoundEnd_TargetBombed = 0,           // Target Successfully Bombed!
-	CSRoundEnd_VIPEscaped,                 // The VIP has escaped!
-	CSRoundEnd_VIPKilled,                  // VIP has been assassinated!
-	CSRoundEnd_TerroristsEscaped,          // The terrorists have escaped!
-	CSRoundEnd_CTStoppedEscape,            // The CTs have prevented most of the terrorists from escaping!
-	CSRoundEnd_TerroristsStopped,          // Escaping terrorists have all been neutralized!
-	CSRoundEnd_BombDefused,                // The bomb has been defused!
-	CSRoundEnd_CTWin,                      // Counter-Terrorists Win!
-	CSRoundEnd_TerroristWin,               // Terrorists Win!
-	CSRoundEnd_Draw,                       // Round Draw!
-	CSRoundEnd_HostagesRescued,            // All Hostages have been rescued!
-	CSRoundEnd_TargetSaved,                // Target has been saved!
-	CSRoundEnd_HostagesNotRescued,         // Hostages have not been rescued!
-	CSRoundEnd_TerroristsNotEscaped,       // Terrorists have not escaped!
-	CSRoundEnd_VIPNotEscaped,              // VIP has not escaped!
-	CSRoundEnd_GameStart,                  // Game Commencing!
+	CSRoundEnd_TargetBombed = 0,           /**< Target Successfully Bombed! */
+	CSRoundEnd_VIPEscaped,                 /**< The VIP has escaped! */
+	CSRoundEnd_VIPKilled,                  /**< VIP has been assassinated! */
+	CSRoundEnd_TerroristsEscaped,          /**< The terrorists have escaped! */
+	CSRoundEnd_CTStoppedEscape,            /**< The CTs have prevented most of the terrorists from escaping! */
+	CSRoundEnd_TerroristsStopped,          /**< Escaping terrorists have all been neutralized! */
+	CSRoundEnd_BombDefused,                /**< The bomb has been defused! */
+	CSRoundEnd_CTWin,                      /**< Counter-Terrorists Win! */
+	CSRoundEnd_TerroristWin,               /**< Terrorists Win! */
+	CSRoundEnd_Draw,                       /**< Round Draw! */
+	CSRoundEnd_HostagesRescued,            /**< All Hostages have been rescued! */
+	CSRoundEnd_TargetSaved,                /**< Target has been saved! */
+	CSRoundEnd_HostagesNotRescued,         /**< Hostages have not been rescued! */
+	CSRoundEnd_TerroristsNotEscaped,       /**< Terrorists have not escaped! */
+	CSRoundEnd_VIPNotEscaped,              /**< VIP has not escaped! */
+	CSRoundEnd_GameStart,                  /**< Game Commencing! */
 	
 	// The below only exist on CS:GO
-	CSRoundEnd_TerroristsSurrender,        // Terrorists Surrender
-	CSRoundEnd_CTSurrender,                // CTs Surrender
+	CSRoundEnd_TerroristsSurrender,        /**< Terrorists Surrender */
+	CSRoundEnd_CTSurrender,                /**< CTs Surrender */
 };
 
 enum CSWeaponID
@@ -144,7 +144,7 @@ forward Action:CS_OnBuyCommand(client, const String:weapon[]);
  * higher action to deny.
  *
  * @param client	Client index
- * @param weapon	Weapon index
+ * @param weaponIndex	Weapon index
  */
 forward Action:CS_OnCSWeaponDrop(client, weaponIndex);
 
@@ -359,6 +359,24 @@ native CSWeaponID:CS_AliasToWeaponID(const String:alias[]);
 native CS_WeaponIDToAlias(CSWeaponID:weaponID, String:destination[], len);
 
 /**
+ * Returns weather a WeaponID is valid on the current mod (css or csgo)
+ * @param weaponID		WeaponID to check
+ * @return				Returns true if its a valid WeaponID false otherwise.
+ *
+ * @note This will return false always for CSWeapon_NONE
+ */
+native bool:CS_IsValidWeaponID(CSWeaponID:id);
+
+/**
+ * Sets a player's model based on their current class
+ *
+ * @param client		Player's index.
+ * @noreturn
+ * @error			Invalid client index, client not in game.
+ */
+native CS_UpdateClientModel(client);
+
+/**
  * Do not edit below this line!
  */
 public Extension:__ext_cstrike = 
@@ -393,6 +411,9 @@ public __ext_cstrike_SetNTVOptional()
 	MarkNativeAsOptional("CS_GetClientAssists");
 	MarkNativeAsOptional("CS_SetClientAssists");
 	MarkNativeAsOptional("CS_AliasToWeaponID");
+	MarkNativeAsOptional("CS_WeaponIDToAlias");
+	MarkNativeAsOptional("CS_IsValidWeaponID");
+	MarkNativeAsOptional("CS_UpdateClientModel");
 }
 #endif
 

@@ -2,8 +2,12 @@
 #define _INCLUDE_SOURCEMOD_EXTENSION_PROPER_H_
 
 #include "smsdk_ext.h"
+#include <ISDKHooks.h>
 #include <IBinTools.h>
 #include <convar.h>
+#include <sh_list.h>
+#include <amtl/am-vector.h>
+#include <vtable_hook_helper.h>
 
 #include <iplayerinfo.h>
 #include <shareddefs.h>
@@ -19,8 +23,12 @@
 #if SOURCE_ENGINE >= SE_CSS && SOURCE_ENGINE != SE_LEFT4DEAD
 #define GETMAXHEALTH_IS_VIRTUAL
 #endif
-#if SOURCE_ENGINE != SE_ORANGEBOXVALVE && SOURCE_ENGINE != SE_CSS && SOURCE_ENGINE != SE_LEFT4DEAD2 && SOURCE_ENGINE != SE_CSGO
+#if SOURCE_ENGINE != SE_HL2DM && SOURCE_ENGINE != SE_DODS && SOURCE_ENGINE != SE_CSS && SOURCE_ENGINE != SE_TF2 && SOURCE_ENGINE != SE_LEFT4DEAD2 && SOURCE_ENGINE != SE_CSGO && SOURCE_ENGINE != SE_NUCLEARDAWN
 #define GAMEDESC_CAN_CHANGE
+#endif
+
+#if SOURCE_ENGINE == SE_DOTA
+class CEntityKeyValues;
 #endif
 
 
@@ -95,15 +103,32 @@ typedef void *(*ReticulateSplines)();
 /**
  * Classes
  */
+
 class IPhysicsObject;
+class CDmgAccumulator;
 typedef CBaseEntity CBaseCombatWeapon;
 
-class HookList
+struct HookList
 {
 public:
 	int entity;
-	SDKHookType type;
 	IPluginFunction *callback;
+};
+
+class CVTableList
+{
+public:
+	CVTableList() : vtablehook(NULL)
+	{
+	};
+
+	~CVTableList()
+	{
+		delete vtablehook;
+	};
+public:
+	CVTableHook *vtablehook;
+	ke::Vector<HookList> hooks;
 };
 
 class IEntityListener
@@ -120,7 +145,8 @@ class SDKHooks :
 	public IPluginsListener,
 	public IFeatureProvider,
 	public IEntityListener,
-	public IClientListener
+	public IClientListener,
+	public ISDKHooks
 {
 public:
 	/**
@@ -215,17 +241,24 @@ public:  // IEntityListener
 public:  // IClientListener
 	virtual void OnClientPutInServer(int client);
 
+public:  // ISDKHooks
+	virtual void AddEntityListener(ISMEntityListener *listener);
+	virtual void RemoveEntityListener(ISMEntityListener *listener);
+
+private:
+	SourceHook::List<ISMEntityListener *> m_EntListeners;
+
 public:
 	/**
 	 * Functions
 	 */
-	cell_t Call(int entity, SDKHookType type, int other=-2);
-	cell_t Call(CBaseEntity *pEnt, SDKHookType type, int other=-2);
+	cell_t Call(int entity, SDKHookType type, int other=INVALID_EHANDLE_INDEX);
+	cell_t Call(CBaseEntity *pEnt, SDKHookType type, int other=INVALID_EHANDLE_INDEX);
 	cell_t Call(CBaseEntity *pEnt, SDKHookType type, CBaseEntity *pOther);
 	void SetupHooks();
 
-	HookReturn Hook(int entity, SDKHookType type, IPluginFunction *callback);
-	void Unhook(int index);
+	HookReturn Hook(int entity, SDKHookType type, IPluginFunction *pCallback);
+	void Unhook(int entity, SDKHookType type, IPluginFunction *pCallback);
 
 	/**
 	 * IServerGameDLL & IVEngineServer Hook Handlers
@@ -256,17 +289,22 @@ public:
 	bool Hook_ReloadPost();
 	void Hook_SetTransmit(CCheckTransmitInfo *pInfo, bool bAlways);
 	bool Hook_ShouldCollide(int collisonGroup, int contentsMask);
+#if SOURCE_ENGINE == SE_DOTA
+	void Hook_Spawn(CEntityKeyValues *kv);
+	void Hook_SpawnPost(CEntityKeyValues *kv);
+#else
 	void Hook_Spawn();
 	void Hook_SpawnPost();
+#endif
 	void Hook_StartTouch(CBaseEntity *pOther);
 	void Hook_StartTouchPost(CBaseEntity *pOther);
 	void Hook_Think();
 	void Hook_ThinkPost();
 	void Hook_Touch(CBaseEntity *pOther);
 	void Hook_TouchPost(CBaseEntity *pOther);
-#if SOURCE_ENGINE == SE_ORANGEBOXVALVE || SOURCE_ENGINE == SE_CSS
-	void Hook_TraceAttack(CTakeDamageInfoHack &info, const Vector &vecDir, trace_t *ptr, void *pUnknownJK);
-	void Hook_TraceAttackPost(CTakeDamageInfoHack &info, const Vector &vecDir, trace_t *ptr, void *pUnknownJK);
+#if SOURCE_ENGINE == SE_HL2DM || SOURCE_ENGINE == SE_DODS || SOURCE_ENGINE == SE_CSS || SOURCE_ENGINE == SE_TF2 || SOURCE_ENGINE == SE_SDK2013
+	void Hook_TraceAttack(CTakeDamageInfoHack &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator);
+	void Hook_TraceAttackPost(CTakeDamageInfoHack &info, const Vector &vecDir, trace_t *ptr, CDmgAccumulator *pAccumulator);
 #else
 	void Hook_TraceAttack(CTakeDamageInfoHack &info, const Vector &vecDir, trace_t *ptr);
 	void Hook_TraceAttackPost(CTakeDamageInfoHack &info, const Vector &vecDir, trace_t *ptr);
@@ -288,11 +326,12 @@ public:
 	bool Hook_WeaponSwitchPost(CBaseCombatWeapon *pWeapon, int viewmodelindex);
 	
 private:
-	void RemoveEntityHooks(CBaseEntity *pEnt);
+	void Unhook(CBaseEntity *pEntity);
+	void Unhook(IPluginContext *pContext);
 };
 
 extern CGlobalVars *gpGlobals;
-extern CUtlVector<HookList> g_HookList;
+extern ke::Vector<CVTableList *> g_HookList[SDKHook_MAXHOOKS];
 
 extern ICvar *icvar;
 #endif // _INCLUDE_SOURCEMOD_EXTENSION_PROPER_H_

@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -115,7 +115,7 @@ unsigned int CPlugin::CalcMemUsage()
 		sizeof(CPlugin) 
 		+ sizeof(IdentityToken_t)
 		+ (m_configs.size() * (sizeof(AutoConfig *) + sizeof(AutoConfig)))
-		+ m_pProps.mem_usage();
+		+ m_Props.mem_usage();
 
 	for (unsigned int i = 0; i < m_configs.size(); i++)
 	{
@@ -170,24 +170,22 @@ CPlugin *CPlugin::CreatePlugin(const char *file, char *error, size_t maxlength)
 
 bool CPlugin::GetProperty(const char *prop, void **ptr, bool remove/* =false */)
 {
-	void **ptrpp = m_pProps.retrieve(prop);
-	bool exists = !!ptrpp;
+	StringHashMap<void *>::Result r = m_Props.find(prop);
+	if (!r.found())
+		return false;
 
-	if (exists)
-	{
-		if (ptr)
-			*ptr = *ptrpp;
-			
-		if (remove)
-			m_pProps.remove(prop);
-	}
+	if (ptr)
+		*ptr = r->value;
 
-	return exists;
+	if (remove)
+		m_Props.remove(r);
+
+	return true;
 }
 
 bool CPlugin::SetProperty(const char *prop, void *ptr)
 {
-	 return m_pProps.insert(prop, ptr);
+	 return m_Props.insert(prop, ptr);
 }
 
 IPluginRuntime *CPlugin::GetRuntime()
@@ -599,9 +597,7 @@ IPhraseCollection *CPlugin::GetPhrases()
 void CPlugin::DependencyDropped(CPlugin *pOwner)
 {
 	if (!m_pRuntime)
-	{
 		return;
-	}
 
 	List<String>::iterator reqlib_iter;
 	List<String>::iterator lib_iter;
@@ -610,30 +606,22 @@ void CPlugin::DependencyDropped(CPlugin *pOwner)
 		for (reqlib_iter=m_RequiredLibs.begin(); reqlib_iter!=m_RequiredLibs.end(); reqlib_iter++)
 		{
 			if ((*reqlib_iter) == (*lib_iter))
-			{
 				m_LibraryMissing = true;
-			}
 		}	
 	}
 
-	List<NativeEntry *>::iterator iter;
-	NativeEntry *pNative;
-	sp_native_t *native;
-	uint32_t idx;
 	unsigned int unbound = 0;
-
-	for (iter = pOwner->m_Natives.begin();
-		 iter != pOwner->m_Natives.end();
-		 iter++)
+	for (size_t i = 0; i < pOwner->m_fakes.length(); i++)
 	{
-		pNative = (*iter);
-		/* Find this native! */
-		if (m_pRuntime->FindNativeByName(pNative->name, &idx) != SP_ERROR_NONE)
-		{
+		ke::Ref<Native> entry(pOwner->m_fakes[i]);
+
+		uint32_t idx;
+		if (m_pRuntime->FindNativeByName(entry->name(), &idx) != SP_ERROR_NONE)
 			continue;
-		}
-		/* Unbind it */
+
+		sp_native_t *native;
 		m_pRuntime->GetNativeByIndex(idx, &native);
+
 		native->pfn = NULL;
 		native->status = SP_NATIVE_UNBOUND;
 		unbound++;
@@ -725,15 +713,11 @@ void CPlugin::DropEverything()
 
 bool CPlugin::AddFakeNative(IPluginFunction *pFunc, const char *name, SPVM_FAKENATIVE_FUNC func)
 {
-	NativeEntry *pEntry;
-
-	if ((pEntry = g_ShareSys.AddFakeNative(pFunc, name, func)) == NULL)
-	{
+	ke::Ref<Native> entry = g_ShareSys.AddFakeNative(pFunc, name, func);
+	if (!entry)
 		return false;
-	}
 
-	m_Natives.push_back(pEntry);
-
+	m_fakes.append(entry);
 	return true;
 }
 
@@ -897,22 +881,19 @@ static bool IsV8Plugin(CPlugin* plugin)
 		||	filename.find(".pakplugin", filename.size() - 10) != std::string::npos;
 }
 
-LoadRes CPluginManager::_LoadPlugin(CPlugin **_plugin, const char *path, bool debug, PluginType type, char error[], size_t maxlength)
+LoadRes CPluginManager::_LoadPlugin(CPlugin **aResult, const char *path, bool debug, PluginType type, char error[], size_t maxlength)
 {
 	if (m_LoadingLocked)
-	{
 		return LoadRes_NeverLoad;
-	}
 
 	int err;
 
 	/**
 	 * Does this plugin already exist?
 	 */
-	CPlugin **pluginpp = m_LoadLookup.retrieve(path);
-	if (pluginpp && *pluginpp)
+	CPlugin *pPlugin;
+	if (m_LoadLookup.retrieve(path, &pPlugin))
 	{
-		CPlugin *pPlugin = *pluginpp;
 		/* Check to see if we should try reloading it */
 		if (pPlugin->GetStatus() == Plugin_BadLoad
 			|| pPlugin->GetStatus() == Plugin_Error
@@ -922,16 +903,13 @@ LoadRes CPluginManager::_LoadPlugin(CPlugin **_plugin, const char *path, bool de
 		}
 		else
 		{
-			if (_plugin)
-			{
-				*_plugin = pPlugin;
-			}
+			if (aResult)
+				*aResult = pPlugin;
 			return LoadRes_AlreadyLoaded;
 		}
 	}
 
-	CPlugin *pPlugin = CPlugin::CreatePlugin(path, error, maxlength);
-
+	pPlugin = CPlugin::CreatePlugin(path, error, maxlength);
 	assert(pPlugin != NULL);
 
 	pPlugin->m_type = PluginType_MapUpdated;
@@ -1063,10 +1041,8 @@ LoadRes CPluginManager::_LoadPlugin(CPlugin **_plugin, const char *path, bool de
 	time_t t = pPlugin->GetFileTimeStamp();
 	pPlugin->SetTimeStamp(t);
 
-	if (_plugin)
-	{
-		*_plugin = pPlugin;
-	}
+	if (aResult)
+		*aResult = pPlugin;
 
 	return (pPlugin->GetStatus() == Plugin_Loaded) ? LoadRes_Successful : loadFailure;
 }
@@ -1315,7 +1291,7 @@ bool CPluginManager::LoadOrRequireExtensions(CPlugin *pPlugin, unsigned int pass
 				{
 					libsys->PathFormat(path, PLATFORM_MAX_PATH, "%s", file);
 					bool bErrorOnMissing = ext->required ? true : false;
-					g_Extensions.LoadAutoExtension(path);
+					g_Extensions.LoadAutoExtension(path, bErrorOnMissing);
 				}
 			}
 			else if (pass == 2)
@@ -1422,15 +1398,14 @@ bool CPluginManager::RunSecondPass(CPlugin *pPlugin, char *error, size_t maxleng
 	pPlugin->Call_OnPluginStart();
 
 	/* Now, if we have fake natives, go through all plugins that might need rebinding */
-	if (pPlugin->GetStatus() <= Plugin_Paused && pPlugin->m_Natives.size())
+	if (pPlugin->GetStatus() <= Plugin_Paused && pPlugin->m_fakes.length())
 	{
 		List<CPlugin *>::iterator pl_iter;
-		CPlugin *pOther;
 		for (pl_iter = m_plugins.begin();
 			 pl_iter != m_plugins.end();
 			 pl_iter++)
 		{
-			pOther = (*pl_iter);
+			CPlugin *pOther = (*pl_iter);
 			if ((pOther->GetStatus() == Plugin_Error
 				&& (pOther->m_FakeNativesMissing || pOther->m_LibraryMissing))
 				|| pOther->m_FakeNativesMissing)
@@ -1441,13 +1416,8 @@ bool CPluginManager::RunSecondPass(CPlugin *pPlugin, char *error, size_t maxleng
 					  || pOther->GetStatus() == Plugin_Paused)
 					 && pOther != pPlugin)
 			{
-				List<NativeEntry *>::iterator nv_iter;
-				for (nv_iter = pPlugin->m_Natives.begin();
-					 nv_iter != pPlugin->m_Natives.end();
-					 nv_iter++)
-				{
-					g_ShareSys.BindNativeToPlugin(pOther, (*nv_iter));
-				}
+				for (size_t i = 0; i < pPlugin->m_fakes.length(); i++)
+					g_ShareSys.BindNativeToPlugin(pOther, pPlugin->m_fakes[i]);
 			}
 		}
 	}
@@ -2143,13 +2113,11 @@ void CPluginManager::OnRootConsoleCommand(const char *cmdname, const CCommand &c
 				const char *ext = libsys->GetFileExtension(arg) ? "" : ".smx";
 				g_pSM->BuildPath(Path_None, pluginfile, sizeof(pluginfile), "%s%s", arg, ext);
 
-				CPlugin **pluginpp = m_LoadLookup.retrieve(pluginfile);
-				if (!pluginpp || !*pluginpp)
+				if (!m_LoadLookup.retrieve(pluginfile, &pl))
 				{
 					rootmenu->ConsolePrint("[SM] Plugin %s is not loaded.", pluginfile);
 					return;
 				}
-				pl = *pluginpp;
 			}
 
 			char name[PLATFORM_MAX_PATH];
@@ -2235,13 +2203,11 @@ void CPluginManager::OnRootConsoleCommand(const char *cmdname, const CCommand &c
 				const char *ext = libsys->GetFileExtension(arg) ? "" : ".smx";
 				g_pSM->BuildPath(Path_None, pluginfile, sizeof(pluginfile), "%s%s", arg, ext);
 
-				CPlugin **pluginpp = m_LoadLookup.retrieve(pluginfile);
-				if (!pluginpp || !*pluginpp)
+				if (!m_LoadLookup.retrieve(pluginfile, &pl))
 				{
 					rootmenu->ConsolePrint("[SM] Plugin %s is not loaded.", pluginfile);
 					return;
 				}
-				pl = *pluginpp;
 			}
 
 			const sm_plugininfo_t *info = pl->GetPublicInfo();
@@ -2367,13 +2333,11 @@ void CPluginManager::OnRootConsoleCommand(const char *cmdname, const CCommand &c
 				const char *ext = libsys->GetFileExtension(arg) ? "" : ".smx";
 				g_pSM->BuildPath(Path_None, pluginfile, sizeof(pluginfile), "%s%s", arg, ext);
 
-				CPlugin **pluginpp = m_LoadLookup.retrieve(pluginfile);
-				if (!pluginpp || !*pluginpp)
+				if (!m_LoadLookup.retrieve(pluginfile, &pl))
 				{
 					rootmenu->ConsolePrint("[SM] Plugin %s is not loaded.", pluginfile);
 					return;
 				}
-				pl = *pluginpp;
 			}
 
 			char name[PLATFORM_MAX_PATH];
@@ -2633,11 +2597,8 @@ SMPlugin *CPluginManager::FindPluginByConsoleArg(const char *arg)
 		const char *ext = libsys->GetFileExtension(arg) ? "" : ".smx";
 		smcore.Format(pluginfile, sizeof(pluginfile), "%s%s", arg, ext);
 
-		CPlugin **pluginpp = m_LoadLookup.retrieve(pluginfile);
-		if (!pluginpp || !*pluginpp)
-		{
+		if (!m_LoadLookup.retrieve(pluginfile, &pl))
 			return NULL;
-		}
 	}
 
 	return pl;

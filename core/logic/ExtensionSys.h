@@ -36,7 +36,6 @@
 #include <ILibrarySys.h>
 #include <sh_list.h>
 #include <sh_string.h>
-#include <sm_trie_tpl.h>
 #include "common_logic.h"
 #include <IPluginSys.h>
 #include <IRootConsoleMenu.h>
@@ -164,7 +163,7 @@ public: //IPluginsListener
 public: //IRootConsoleCommand
 	void OnRootConsoleCommand(const char *cmdname, const CCommand &command);
 public:
-	IExtension *LoadAutoExtension(const char *path);
+	IExtension *LoadAutoExtension(const char *path, bool bErrorOnMissing=true);
 	void BindDependency(IExtension *pOwner, IfaceInfo *pInfo);
 	void AddInterface(IExtension *pOwner, SMInterface *pInterface);
 	void BindChildPlugin(IExtension *pParent, SMPlugin *pPlugin);

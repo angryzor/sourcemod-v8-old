@@ -33,6 +33,8 @@
 #define _INCLUDE_CSTRIKE_UTIL_H_
 
 #if SOURCE_ENGINE == SE_CSGO
+class CEconItemView;
+
 enum CSGOWeapon
 {
 	CSGOWeapon_NONE,
@@ -90,6 +92,7 @@ enum CSGOWeapon
 	CSGOWeapon_NVG,
 	CSGOWeapon_DEFUSER
 };
+#endif
 enum SMCSWeapon
 {
 	SMCSWeapon_NONE = 0,
@@ -148,7 +151,6 @@ enum SMCSWeapon
 	SMCSWeapon_INCGRENADE,
 	SMCSWeapon_DEFUSER
 };
-#endif
 void *GetWeaponInfo(int weaponID);
 
 const char *GetTranslatedWeaponAlias(const char *weapon);
@@ -160,5 +162,7 @@ const char *WeaponIDToAlias(int weaponID);
 int GetRealWeaponID(int weaponId);
 
 int GetFakeWeaponID(int weaponId);
+
+bool IsValidWeaponID(int weaponId);
 
 #endif

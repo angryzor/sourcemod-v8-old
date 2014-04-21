@@ -309,6 +309,94 @@ bool FindNestedDataTable(SendTable *pTable, const char *name)
 	return false;
 }
 
+char *UTIL_SendFlagsToString(int flags, int type)
+{
+	static char str[1024];
+	str[0] = 0;
+
+	if (flags & SPROP_UNSIGNED)
+	{
+		strcat(str, "Unsigned|");
+	}
+	if (flags & SPROP_COORD)
+	{
+		strcat(str, "Coord|");
+	}
+	if (flags & SPROP_NOSCALE)
+	{
+		strcat(str, "NoScale|");
+	}
+	if (flags & SPROP_ROUNDDOWN)
+	{
+		strcat(str, "RoundDown|");
+	}
+	if (flags & SPROP_ROUNDUP)
+	{
+		strcat(str, "RoundUp|");
+	}
+	if (flags & SPROP_NORMAL)
+	{
+		if (type == DPT_Int)
+		{
+			strcat(str, "VarInt|");
+		}
+		else
+		{
+			strcat(str, "Normal|");
+		}
+	}
+	if (flags & SPROP_EXCLUDE)
+	{
+		strcat(str, "Exclude|");
+	}
+	if (flags & SPROP_XYZE)
+	{
+		strcat(str, "XYZE|");
+	}
+	if (flags & SPROP_INSIDEARRAY)
+	{
+		strcat(str, "InsideArray|");
+	}
+	if (flags & SPROP_PROXY_ALWAYS_YES)
+	{
+		strcat(str, "AlwaysProxy|");
+	}
+	if (flags & SPROP_CHANGES_OFTEN)
+	{
+		strcat(str, "ChangesOften|");
+	}
+	if (flags & SPROP_IS_A_VECTOR_ELEM)
+	{
+		strcat(str, "VectorElem|");
+	}
+	if (flags & SPROP_COLLAPSIBLE)
+	{
+		strcat(str, "Collapsible|");
+	}
+#if SOURCE_ENGINE >= SE_ORANGEBOX
+	if (flags & SPROP_COORD_MP)
+	{
+		strcat(str, "CoordMP|");
+	}
+	if (flags & SPROP_COORD_MP_LOWPRECISION)
+	{
+		strcat(str, "CoordMPLowPrec|");
+	}
+	if (flags & SPROP_COORD_MP_INTEGRAL)
+	{
+		strcat(str, "CoordMpIntegral|");
+	}
+#endif
+
+	int len = strlen(str) - 1;
+	if (len > 0)
+	{
+		str[len] = 0; // Strip the final '|'
+	}
+
+	return str;
+}
+
 void UTIL_DrawSendTable_XML(FILE *fp, SendTable *pTable, int space_count)
 {
 	char spaces[255];
@@ -341,6 +429,7 @@ void UTIL_DrawSendTable_XML(FILE *fp, SendTable *pTable, int space_count)
 
 		fprintf(fp, "   %s<offset>%d</offset>\n", spaces, pProp->GetOffset());
 		fprintf(fp, "   %s<bits>%d</bits>\n", spaces, pProp->m_nBits);
+		fprintf(fp, "   %s<flags>%s</flags>\n", spaces, UTIL_SendFlagsToString(pProp->GetFlags(), pProp->GetType()));
 
 		if ((pOtherTable = pTable->GetProp(i)->GetDataTable()) != NULL)
 		{
@@ -384,22 +473,24 @@ void UTIL_DrawSendTable(FILE *fp, SendTable *pTable, int level = 1)
 			if (type != NULL)
 			{
 				fprintf(fp,
-					"%*sMember: %s (offset %d) (type %s) (bits %d)\n", 
+					"%*sMember: %s (offset %d) (type %s) (bits %d) (%s)\n", 
 					level, "", 
 					pProp->GetName(),
 					pProp->GetOffset(),
 					type,
-					pProp->m_nBits);
+					pProp->m_nBits,
+					UTIL_SendFlagsToString(pProp->GetFlags(), pProp->GetType()));
 			}
 			else
 			{
 				fprintf(fp,
-					"%*sMember: %s (offset %d) (type %d) (bits %d)\n", 
+					"%*sMember: %s (offset %d) (type %d) (bits %d) (%s)\n", 
 					level, "", 
 					pProp->GetName(),
 					pProp->GetOffset(),
 					pProp->GetType(),
-					pProp->m_nBits);
+					pProp->m_nBits,
+					UTIL_SendFlagsToString(pProp->GetFlags(), pProp->GetType()));
 			}
 		}
 	}
@@ -502,6 +593,83 @@ void _ignore_invalid_parameter(
 }
 #endif
 
+CEntityFactoryDictionary *GetEntityFactoryDictionary()
+{
+	static CEntityFactoryDictionary *dict = NULL;
+
+#if SOURCE_ENGINE == SE_TF2 \
+	|| SOURCE_ENGINE == SE_CSS \
+	|| SOURCE_ENGINE == SE_DODS \
+	|| SOURCE_ENGINE == SE_HL2DM \
+	|| SOURCE_ENGINE == SE_SDK2013 \
+	|| SOURCE_ENGINE == SE_NUCLEARDAWN
+	dict = (CEntityFactoryDictionary *) servertools->GetEntityFactoryDictionary();
+#else
+	if (dict == NULL)
+	{
+		void *addr;
+		if (g_pGameConf->GetMemSig("EntityFactoryFinder", (void **) &addr) && addr)
+		{
+			int offset;
+			if (!g_pGameConf->GetOffset("EntityFactoryOffset", &offset) || !offset)
+			{
+				return NULL;
+			}
+			dict = *reinterpret_cast<CEntityFactoryDictionary **>((intptr_t) addr + offset);
+		}
+	}
+
+	if (dict == NULL)
+	{
+		ICallWrapper *pWrapper = NULL;
+
+		PassInfo retData;
+		retData.flags = PASSFLAG_BYVAL;
+		retData.size = sizeof(void *);
+		retData.type = PassType_Basic;
+
+		void *addr;
+		if (!g_pGameConf->GetMemSig("EntityFactory", &addr) || !addr)
+		{
+			int offset;
+
+			if (!g_pGameConf->GetMemSig("EntityFactoryCaller", &addr) || !addr)
+				return NULL;
+
+			if (!g_pGameConf->GetOffset("EntityFactoryCallOffset", &offset))
+				return NULL;
+
+			// Get relative offset to function
+			int32_t funcOffset = *(int32_t *)((intptr_t)addr + offset);
+
+			// Get real address of function
+			// Address of signature + offset of relative offset + sizeof(int32_t) offset + relative offset
+			addr = (void *)((intptr_t)addr + offset + 4 + funcOffset);
+		}
+
+		pWrapper = g_pBinTools->CreateCall(addr, CallConv_Cdecl, &retData, NULL, 0);
+
+		if (pWrapper)
+		{
+			void *returnData = NULL;
+
+			pWrapper->Execute(NULL, &returnData);
+
+			pWrapper->Destroy();
+
+			if (returnData == NULL)
+			{
+				return NULL;
+			}
+
+			dict = (CEntityFactoryDictionary *) returnData;
+		}
+	}
+#endif
+
+	return dict;
+}
+
 CON_COMMAND(sm_dump_classes, "Dumps the class list as a text file")
 {
 #if SOURCE_ENGINE <= SE_DARKMESSIAH
@@ -521,41 +689,10 @@ CON_COMMAND(sm_dump_classes, "Dumps the class list as a text file")
 		return;
 	}
 
-	ICallWrapper *pWrapper = NULL;
-
-	if (!pWrapper)
+	CEntityFactoryDictionary *dict = GetEntityFactoryDictionary();
+	if (dict == NULL)
 	{
-		PassInfo retData;
-		retData.flags = PASSFLAG_BYVAL;
-		retData.size = sizeof(void *);
-		retData.type = PassType_Basic;
-
-		void *addr;
-		if (!g_pGameConf->GetMemSig("EntityFactory", &addr) || addr == NULL)
-		{
-			META_CONPRINT("Failed to locate function\n");
-			return;
-		}
-
-		pWrapper = g_pBinTools->CreateCall(addr, CallConv_Cdecl, &retData, NULL, 0);
-	}
-
-
-	void *returnData = NULL;
-
-	pWrapper->Execute(NULL, &returnData);
-
-	pWrapper->Destroy();
-
-	if (returnData == NULL)
-	{
-		return;
-	}
-
-	CEntityFactoryDictionary *dict = ( CEntityFactoryDictionary * )returnData;
-
-	if ( !dict )
-	{
+		META_CONPRINT("Failed to locate function\n");
 		return;
 	}
 
@@ -585,14 +722,17 @@ CON_COMMAND(sm_dump_classes, "Dumps the class list as a text file")
 
 	fprintf(fp, "// Dump of all classes for \"%s\" as at %s\n//\n\n", g_pSM->GetGameFolderName(), buffer);
 
+	sm_datatable_info_t info;
 	for ( int i = dict->m_Factories.First(); i != dict->m_Factories.InvalidIndex(); i = dict->m_Factories.Next( i ) )
 	{
 		IServerNetworkable *entity = dict->Create(dict->m_Factories.GetElementName(i));
 		ServerClass *sclass = entity->GetServerClass();
 		fprintf(fp,"%s - %s\n",sclass->GetName(), dict->m_Factories.GetElementName(i));
-
-		typedescription_t *datamap = gamehelpers->FindInDataMap(gamehelpers->GetDataMap(entity->GetBaseEntity()), "m_iEFlags");
-		int *eflags = (int *)((char *)entity->GetBaseEntity() + GetTypeDescOffs(datamap));
+		
+		if (!gamehelpers->FindDataMapInfo(gamehelpers->GetDataMap(entity->GetBaseEntity()), "m_iEFlags", &info))
+			continue;
+		
+		int *eflags = (int *)((char *)entity->GetBaseEntity() + info.actual_offset);
 		*eflags |= (1<<0); // EFL_KILLME
 	}
 
@@ -600,7 +740,7 @@ CON_COMMAND(sm_dump_classes, "Dumps the class list as a text file")
 
 }
 
-char *UTIL_FlagsToString(int flags)
+char *UTIL_DataFlagsToString(int flags)
 {
 	static char str[1024];
 	str[0] = 0;
@@ -678,7 +818,7 @@ void UTIL_DrawDataTable(FILE *fp, datamap_t *pMap, int level)
 			else
 			{
 				externalname  = pMap->dataDesc[i].externalName;
-				flags = UTIL_FlagsToString(pMap->dataDesc[i].flags);
+				flags = UTIL_DataFlagsToString(pMap->dataDesc[i].flags);
 
 				if (externalname == NULL)
 				{
@@ -713,53 +853,7 @@ CON_COMMAND(sm_dump_datamaps, "Dumps the data map list as a text file")
 		return;
 	}
 
-	static CEntityFactoryDictionary *dict = NULL;
-	if (dict == NULL)
-	{
-		void *addr;
-		if (g_pGameConf->GetMemSig("EntityFactoryFinder", (void **)&addr) && addr)
-		{
-			int offset;
-			if (!g_pGameConf->GetOffset("EntityFactoryOffset", &offset) || !offset)
-			{
-				return;
-			}
-			dict = *reinterpret_cast<CEntityFactoryDictionary **>((intptr_t)addr + offset);
-		}
-	}
-
-	if (dict == NULL)
-	{
-		ICallWrapper *pWrapper = NULL;
-
-		PassInfo retData;
-		retData.flags = PASSFLAG_BYVAL;
-		retData.size = sizeof(void *);
-		retData.type = PassType_Basic;
-
-		void *addr;
-		if (g_pGameConf->GetMemSig("EntityFactory", &addr) && addr != NULL)
-		{
-			pWrapper = g_pBinTools->CreateCall(addr, CallConv_Cdecl, &retData, NULL, 0);
-		}
-
-		if (pWrapper)
-		{
-			void *returnData = NULL;
-
-			pWrapper->Execute(NULL, &returnData);
-
-			pWrapper->Destroy();
-
-			if (returnData == NULL)
-			{
-				return;
-			}
-
-			dict = ( CEntityFactoryDictionary * )returnData;
-		}
-	}
-
+	CEntityFactoryDictionary *dict = GetEntityFactoryDictionary();
 	if ( dict == NULL )
 	{
 		META_CONPRINT("Failed to locate function\n");
@@ -819,14 +913,13 @@ CON_COMMAND(sm_dump_datamaps, "Dumps the data map list as a text file")
 
 		if (offsEFlags == -1)
 		{
-			typedescription_t *datamap = gamehelpers->FindInDataMap(pMap, "m_iEFlags");
-		
-			if (!datamap)
+			sm_datatable_info_t info;
+			if (!gamehelpers->FindDataMapInfo(pMap, "m_iEFlags", &info))
 			{
 				continue;
 			}
 
-			offsEFlags = GetTypeDescOffs(datamap);
+			offsEFlags = info.actual_offset;
 		}
 		
 		int *eflags = (int *)((char *)entity->GetBaseEntity() + offsEFlags);

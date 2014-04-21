@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -58,7 +58,8 @@ typedef ICommandLine *(*FakeGetCommandLine)();
 #define TIER0_NAME			"libtier0.dylib"
 #define VSTDLIB_NAME		"libvstdlib.dylib"
 #elif defined __linux__
-#if SOURCE_ENGINE == SE_ORANGEBOXVALVE || SOURCE_ENGINE == SE_CSS || SOURCE_ENGINE == SE_LEFT4DEAD2
+#if SOURCE_ENGINE == SE_HL2DM || SOURCE_ENGINE == SE_DODS || SOURCE_ENGINE == SE_CSS || SOURCE_ENGINE == SE_TF2 \
+	|| SOURCE_ENGINE == SE_SDK2013 || SOURCE_ENGINE == SE_LEFT4DEAD2 || SOURCE_ENGINE == SE_NUCLEARDAWN
 #define TIER0_NAME			"libtier0_srv.so"
 #define VSTDLIB_NAME		"libvstdlib_srv.so"
 #elif SOURCE_ENGINE >= SE_LEFT4DEAD
@@ -74,53 +75,37 @@ CHalfLife2 g_HL2;
 ConVar *sv_lan = NULL;
 
 static void *g_EntList = NULL;
+static void **g_pEntInfoList = NULL;
 static int entInfoOffset = -1;
 
-namespace SourceHook
+static CEntInfo *EntInfoArray()
 {
-	template<>
-	int HashFunction<datamap_t *>(datamap_t * const &k)
+	if (g_EntList != NULL)
 	{
-		return reinterpret_cast<int>(k);
+		return (CEntInfo *)((intp)g_EntList + entInfoOffset);
 	}
-
-	template<>
-	int Compare<datamap_t *>(datamap_t * const &k1, datamap_t * const &k2)
+	else if (g_pEntInfoList)
 	{
-		return (k1-k2);
+		return *(CEntInfo **)g_pEntInfoList;
 	}
+	
+	return NULL;
 }
 
 CHalfLife2::CHalfLife2()
 {
-	m_pClasses = sm_trie_create();
+	m_Maps.init();
+
+	m_pGetCommandLine = NULL;
 }
 
 CHalfLife2::~CHalfLife2()
 {
-	sm_trie_destroy(m_pClasses);
+	for (NameHashSet<DataTableInfo *>::iterator iter = m_Classes.iter(); !iter.empty(); iter.next())
+		delete *iter;
 
-	List<DataTableInfo *>::iterator iter;
-	DataTableInfo *pInfo;
-	for (iter=m_Tables.begin(); iter!=m_Tables.end(); iter++)
-	{
-		pInfo = (*iter);
-		delete pInfo;
-	}
-
-	m_Tables.clear();
-
-	THash<datamap_t *, DataMapTrie>::iterator h_iter;
-	for (h_iter=m_Maps.begin(); h_iter!=m_Maps.end(); h_iter++)
-	{
-		if (h_iter->val.trie)
-		{
-			sm_trie_destroy(h_iter->val.trie);
-			h_iter->val.trie = NULL;
-		}
-	}
-
-	m_Maps.clear();
+	for (DataTableMap::iterator iter = m_Maps.iter(); !iter.empty(); iter.next())
+		delete iter->value;
 }
 
 #if SOURCE_ENGINE != SE_DARKMESSIAH
@@ -194,91 +179,79 @@ void CHalfLife2::InitLogicalEntData()
 #endif
 	}
 
-
 	if (!g_EntList)
 	{
-		if (!g_pGameConf->GetMemSig("LevelShutdown", (void **)&addr))
+		if (g_pGameConf->GetMemSig("LevelShutdown", (void **) &addr) && addr)
 		{
-			g_Logger.LogError("Logical Entities not supported by this mod (LevelShutdown) - Reverting to networkable entities only");
-			return;
-		}
+			int offset;
+			if (!g_pGameConf->GetOffset("gEntList", &offset))
+			{
+				g_Logger.LogError("Logical Entities not supported by this mod (gEntList) - Reverting to networkable entities only");
+				return;
+			}
 
-		if (!addr)
-		{
-			g_Logger.LogError("Failed lookup of LevelShutdown - Reverting to networkable entities only");
-			return;
-		}
+			g_EntList = *reinterpret_cast<void **>(addr + offset);
 
-		int offset;
-		if (!g_pGameConf->GetOffset("gEntList", &offset))
-		{
-			g_Logger.LogError("Logical Entities not supported by this mod (gEntList) - Reverting to networkable entities only");
-			return;
 		}
-
-		g_EntList = *reinterpret_cast<void **>(addr + offset);
 	}
-	
-	if (!g_EntList)
+
+	// If we have g_EntList from either of the above methods, make sure we can get the offset from it to EntInfo as well
+	if (g_EntList && !g_pGameConf->GetOffset("EntInfo", &entInfoOffset))
 	{
-		g_Logger.LogError("Failed lookup of gEntList - Reverting to networkable entities only");
+		g_Logger.LogError("Logical Entities not supported by this mod (EntInfo) - Reverting to networkable entities only");
+		g_EntList = NULL;
 		return;
 	}
 
-	if (!g_pGameConf->GetOffset("EntInfo", &entInfoOffset))
+	// If we don't have g_EntList or have it but don't know where EntInfo is on it, use fallback.
+	if (!g_EntList || entInfoOffset == -1)
 	{
-		g_Logger.LogError("Logical Entities not supported by this mod (EntInfo) - Reverting to networkable entities only");
+		g_pGameConf->GetAddress("EntInfosPtr", (void **)&g_pEntInfoList);
+	}
+	
+	if (!g_EntList && !g_pEntInfoList)
+	{
+		g_Logger.LogError("Failed lookup of gEntList - Reverting to networkable entities only");
 		return;
 	}
 }
 
 void CHalfLife2::InitCommandLine()
 {
-	char path[PLATFORM_MAX_PATH];
 	char error[256];
-	
-	g_SourceMod.BuildPath(Path_Game, path, sizeof(path), "../bin/" TIER0_NAME);
 
-	if (!g_LibSys.IsPathFile(path))
+	if (!is_original_engine)
 	{
-		g_Logger.LogError("Could not find path for: " TIER0_NAME);
-		return;
-	}
-
-	ILibrary *lib = g_LibSys.OpenLibrary(path, error, sizeof(error));
-	m_pGetCommandLine = lib->GetSymbolAddress("CommandLine_Tier0");
-
-	/* '_Tier0' dropped on Alien Swarm version */
-	if (m_pGetCommandLine == NULL)
-	{
-		m_pGetCommandLine = lib->GetSymbolAddress("CommandLine");
-	}
-
-	if (m_pGetCommandLine == NULL)
-	{
-		/* We probably have a Ship engine. */
-		lib->CloseLibrary();
-		g_SourceMod.BuildPath(Path_Game, path, sizeof(path), "../bin/" VSTDLIB_NAME);
-		if (!g_LibSys.IsPathFile(path))
+		ke::AutoPtr<ILibrary> lib(g_LibSys.OpenLibrary(TIER0_NAME, error, sizeof(error)));
+		if (lib == NULL)
 		{
-			g_Logger.LogError("Could not find path for: " VSTDLIB_NAME);
+			g_Logger.LogError("Could not load %s: %s", TIER0_NAME, error);
 			return;
 		}
+		
+		m_pGetCommandLine = lib->GetSymbolAddress("CommandLine_Tier0");
 
-		if ((lib = g_LibSys.OpenLibrary(path, error, sizeof(error))) == NULL)
-		{
-			g_Logger.LogError("Could not load %s: %s", path, error);
-			return;
-		}
-
-		m_pGetCommandLine = lib->GetSymbolAddress("CommandLine");
-
+		/* '_Tier0' dropped on Alien Swarm version */
 		if (m_pGetCommandLine == NULL)
 		{
-			g_Logger.LogError("Could not locate any command line functionality");
+			m_pGetCommandLine = lib->GetSymbolAddress("CommandLine");
+		}
+	}
+	else
+	{
+		ke::AutoPtr<ILibrary> lib(g_LibSys.OpenLibrary(VSTDLIB_NAME, error, sizeof(error)));
+		if (lib == NULL)
+		{
+			g_Logger.LogError("Could not load %s: %s", VSTDLIB_NAME, error);
+			return;
 		}
 
-		lib->CloseLibrary();
+		m_pGetCommandLine = lib->GetSymbolAddress("CommandLine");
+	}
+	
+	if (m_pGetCommandLine == NULL)
+	{
+		g_Logger.LogError("Could not locate any command line functionality");
 	}
 }
 
@@ -343,16 +316,11 @@ bool UTIL_FindInSendTable(SendTable *pTable,
 	return false;
 }
 
-typedescription_t *UTIL_FindInDataMap(datamap_t *pMap, const char *name, bool *isNested)
+bool UTIL_FindDataMapInfo(datamap_t *pMap, const char *name, sm_datatable_info_t *pDataTable)
 {
-	if (isNested)
-	{
-		*isNested = false;
-	}
-	
 	while (pMap)
 	{
-		for (int i=0; i<pMap->dataNumFields; i++)
+		for (int i = 0; i < pMap->dataNumFields; ++i)
 		{
 			if (pMap->dataDesc[i].fieldName == NULL)
 			{
@@ -360,32 +328,23 @@ typedescription_t *UTIL_FindInDataMap(datamap_t *pMap, const char *name, bool *i
 			}
 			if (strcmp(name, pMap->dataDesc[i].fieldName) == 0)
 			{
-				return &(pMap->dataDesc[i]);
+				pDataTable->prop = &(pMap->dataDesc[i]);
+				pDataTable->actual_offset = GetTypeDescOffs(pDataTable->prop);
+				return true;
 			}
-			if (pMap->dataDesc[i].td)
+			if (pMap->dataDesc[i].td == NULL || !UTIL_FindDataMapInfo(pMap->dataDesc[i].td, name, pDataTable))
 			{
-				if (isNested)
-				{
-					*isNested = (UTIL_FindInDataMap(pMap->dataDesc[i].td, name, NULL) != NULL);
-					if (*isNested)
-					{
-						return NULL;
-					} else {
-						continue;
-					}
-				} else { // Use the old behaviour, we dont want to spring this on extensions - even if they're doing bad things.
-					typedescription_t *_td;
-					if ((_td=UTIL_FindInDataMap(pMap->dataDesc[i].td, name, NULL)) != NULL)
-					{
-						return _td;
-					}
-				}
+				continue;
 			}
+			
+			pDataTable->actual_offset += GetTypeDescOffs(&(pMap->dataDesc[i]));
+			return true;
 		}
+		
 		pMap = pMap->baseMap;
 	}
 
-	return NULL; 
+	return false; 
 }
 
 ServerClass *CHalfLife2::FindServerClass(const char *classname)
@@ -393,9 +352,7 @@ ServerClass *CHalfLife2::FindServerClass(const char *classname)
 	DataTableInfo *pInfo = _FindServerClass(classname);
 
 	if (!pInfo)
-	{
 		return NULL;
-	}
 
 	return pInfo->sc;
 }
@@ -403,26 +360,21 @@ ServerClass *CHalfLife2::FindServerClass(const char *classname)
 DataTableInfo *CHalfLife2::_FindServerClass(const char *classname)
 {
 	DataTableInfo *pInfo = NULL;
-
-	if (!sm_trie_retrieve(m_pClasses, classname, (void **)&pInfo))
+	if (!m_Classes.retrieve(classname, &pInfo))
 	{
 		ServerClass *sc = gamedll->GetAllServerClasses();
 		while (sc)
 		{
 			if (strcmp(classname, sc->GetName()) == 0)
 			{
-				pInfo = new DataTableInfo;
-				pInfo->sc = sc;
-				sm_trie_insert(m_pClasses, classname, pInfo);
-				m_Tables.push_back(pInfo);
+				pInfo = new DataTableInfo(sc);
+				m_Classes.insert(classname, pInfo);
 				break;
 			}
 			sc = sc->m_pNext;
 		}
 		if (!pInfo)
-		{
 			return NULL;
-		}
 	}
 
 	return pInfo;
@@ -431,14 +383,13 @@ DataTableInfo *CHalfLife2::_FindServerClass(const char *classname)
 bool CHalfLife2::FindSendPropInfo(const char *classname, const char *offset, sm_sendprop_info_t *info)
 {
 	DataTableInfo *pInfo;
-	sm_sendprop_info_t *prop;
 
 	if ((pInfo = _FindServerClass(classname)) == NULL)
 	{
 		return false;
 	}
 
-	if ((prop = pInfo->lookup.retrieve(offset)) == NULL)
+	if (!pInfo->lookup.retrieve(offset, info))
 	{
 		sm_sendprop_info_t temp_info;
 
@@ -449,10 +400,6 @@ bool CHalfLife2::FindSendPropInfo(const char *classname, const char *offset, sm_
 
 		pInfo->lookup.insert(offset, temp_info);
 		*info = temp_info;
-	}
-	else
-	{
-		*info = *prop;
 	}
 	
 	return true;
@@ -472,27 +419,32 @@ SendProp *CHalfLife2::FindInSendTable(const char *classname, const char *offset)
 
 typedescription_t *CHalfLife2::FindInDataMap(datamap_t *pMap, const char *offset)
 {
-	return this->FindInDataMap(pMap, offset, NULL);
+	sm_datatable_info_t dt_info;
+	
+	if (!(this->FindDataMapInfo(pMap, offset, &dt_info)))
+	{
+		return NULL;
+	}
+	
+	return dt_info.prop;
 }
 
-typedescription_t *CHalfLife2::FindInDataMap(datamap_t *pMap, const char *offset, bool *isNested)
+bool CHalfLife2::FindDataMapInfo(datamap_t *pMap, const char *offset, sm_datatable_info_t *pDataTable)
 {
-	typedescription_t *td = NULL;
-	DataMapTrie &val = m_Maps[pMap];
+	DataTableMap::Insert i = m_Maps.findForAdd(pMap);
+	if (!i.found())
+		m_Maps.add(i, pMap, new DataMapCache());
 
-	if (!val.trie)
+	DataMapCache *cache = i->value;
+
+	if (!cache->retrieve(offset, pDataTable))
 	{
-		val.trie = sm_trie_create();
-	}
-	if (!sm_trie_retrieve(val.trie, offset, (void **)&td))
-	{
-		if ((td = UTIL_FindInDataMap(pMap, offset, isNested)) != NULL)
-		{
-			sm_trie_insert(val.trie, offset, td);
-		}
+		if (!UTIL_FindDataMapInfo(pMap, offset, pDataTable))
+			return false;
+		cache->insert(offset, *pDataTable);
 	}
 
-	return td;
+	return true;
 }
 
 void CHalfLife2::SetEdictStateChanged(edict_t *pEdict, unsigned short offset)
@@ -579,10 +531,6 @@ bool CHalfLife2::TextMsg(int client, int dest, const char *msg)
 
 	pMsg->set_dest(dest);
 	pMsg->add_param(msg);
-	pMsg->add_param("");
-	pMsg->add_param("");
-	pMsg->add_param("");
-	pMsg->add_param("");
 #elif SOURCE_ENGINE == SE_CSGO
 	CCSUsrMsg_TextMsg *pMsg;
 	if ((pMsg = (CCSUsrMsg_TextMsg *)g_UserMsgs.StartProtobufMessage(m_MsgTextMsg, players, 1, USERMSG_RELIABLE)) == NULL)
@@ -803,6 +751,7 @@ void CHalfLife2::ProcessFakeCliCmdQueue()
 		}
 
 		m_CmdQueue.pop();
+		m_FreeCmds.push(pFake);
 	}
 }
 
@@ -897,6 +846,14 @@ const char *CHalfLife2::CurrentCommandName()
 
 void CHalfLife2::AddDelayedKick(int client, int userid, const char *msg)
 {
+	CPlayer *pPlayer = g_Players.GetPlayerByIndex(client);
+	if (!pPlayer || !pPlayer->IsConnected() || pPlayer->IsInKickQueue())
+	{
+		return;
+	}
+	
+	pPlayer->MarkAsBeingKicked();
+
 	DelayedKickInfo kick;
 
 	kick.client = client;
@@ -1051,7 +1008,9 @@ CEntInfo *CHalfLife2::LookupEntity(int entIndex)
 		return NULL;
 	}
 
-	if (!g_EntList || entInfoOffset == -1)
+	CEntInfo *entInfos = EntInfoArray();
+
+	if (!entInfos)
 	{
 		/* Attempt to use engine interface instead */
 		static CEntInfo tempInfo;
@@ -1078,8 +1037,7 @@ CEntInfo *CHalfLife2::LookupEntity(int entIndex)
 		return &tempInfo;
 	}
 
-	CEntInfo *pArray = (CEntInfo *)(((unsigned char *)g_EntList) + entInfoOffset);
-	return &pArray[entIndex];
+	return &entInfos[entIndex];
 }
 
 /**
@@ -1213,8 +1171,14 @@ const char *CHalfLife2::GetEntityClassname(CBaseEntity *pEntity)
 	{
 		CBaseEntity *pGetterEnt = ReferenceToEntity(0);
 		datamap_t *pMap = GetDataMap(pGetterEnt);
-		typedescription_t *pDesc = FindInDataMap(pMap, "m_iClassname");
-		offset = GetTypeDescOffs(pDesc);
+		
+		sm_datatable_info_t info;
+		if (!FindDataMapInfo(pMap, "m_iClassname", &info))
+		{
+			return NULL;
+		}
+		
+		offset = info.actual_offset;
 	}
 
 	return *(const char **)(((unsigned char *)pEntity) + offset);

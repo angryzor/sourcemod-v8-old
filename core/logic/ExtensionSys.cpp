@@ -35,6 +35,7 @@
 #include <ISourceMod.h>
 #include "common_logic.h"
 #include "PluginSys.h"
+#include <am-utility.h>
 
 CExtensionManager g_Extensions;
 IdentityType_t g_ExtType;
@@ -82,6 +83,37 @@ CLocalExtension::CLocalExtension(const char *filename)
 	if (libsys->IsPathFile(path))
 	{
 		goto found;
+	}
+
+	/* COMPAT HACK: One-halfth, if ep2v, see if there is an engine specific build in the new place with old naming */
+	if (strcmp(smcore.gamesuffix, "2.tf2") == 0
+		|| strcmp(smcore.gamesuffix, "2.dods") == 0
+		|| strcmp(smcore.gamesuffix, "2.hl2dm") == 0
+		)
+	{
+		g_pSM->BuildPath(Path_SM,
+			path,
+			PLATFORM_MAX_PATH,
+			"extensions/%s.2.ep2v." PLATFORM_LIB_EXT,
+			filename);
+
+		if (libsys->IsPathFile(path))
+		{
+			goto found;
+		}
+	}
+	else if (strcmp(smcore.gamesuffix, "2.nd") == 0)
+	{
+		g_pSM->BuildPath(Path_SM,
+			path,
+			PLATFORM_MAX_PATH,
+			"extensions/%s.2.l4d2." PLATFORM_LIB_EXT,
+			filename);
+
+		if (libsys->IsPathFile(path))
+		{
+			goto found;
+		}
 	}
 
 	/* First see if there is an engine specific build! */
@@ -311,7 +343,7 @@ void CExtension::MarkAllLoaded()
 void CExtension::AddPlugin(CPlugin *pPlugin)
 {
 	/* Unfortunately we have to do this :( */
-	if (m_Dependents.find(pPlugin) != m_Dependents.end())
+	if (m_Dependents.find(pPlugin) == m_Dependents.end())
 	{
 		m_Dependents.push_back(pPlugin);
 	}
@@ -506,11 +538,9 @@ void CExtensionManager::TryAutoload()
 
 	g_pSM->BuildPath(Path_SM, path, sizeof(path), "extensions");
 
-	IDirectory *pDir = libsys->OpenDirectory(path);
+	ke::AutoPtr<IDirectory> pDir(libsys->OpenDirectory(path));
 	if (!pDir)
-	{
 		return;
-	}
 
 	const char *lfile;
 	size_t len;
@@ -546,7 +576,7 @@ void CExtensionManager::TryAutoload()
 	}
 }
 
-IExtension *CExtensionManager::LoadAutoExtension(const char *path)
+IExtension *CExtensionManager::LoadAutoExtension(const char *path, bool bErrorOnMissing)
 {
 	/* Remove platform extension if it's there. Compat hack. */
 	const char *ext = libsys->GetFileExtension(path);
@@ -555,7 +585,7 @@ IExtension *CExtensionManager::LoadAutoExtension(const char *path)
 		char path2[PLATFORM_MAX_PATH];
 		smcore.Format(path2, sizeof(path2), "%s", path);
 		path2[strlen(path) - strlen(PLATFORM_LIB_EXT) - 1] = '\0';
-		return LoadAutoExtension(path2);
+		return LoadAutoExtension(path2, bErrorOnMissing);
 	}
 
 	IExtension *pAlready;
@@ -574,7 +604,11 @@ IExtension *CExtensionManager::LoadAutoExtension(const char *path)
 
 	if (!p->Load(error, sizeof(error)) || !p->IsLoaded())
 	{
-		smcore.LogError("[SM] Unable to load extension \"%s\": %s", path, error);
+		if (bErrorOnMissing || libsys->IsPathFile(p->GetPath()))
+		{
+			smcore.LogError("[SM] Unable to load extension \"%s\": %s", path, error);
+		}
+		
 		p->SetError(error);
 	}
 
@@ -744,25 +778,21 @@ CExtension *CExtensionManager::FindByOrder(unsigned int num)
 bool CExtensionManager::UnloadExtension(IExtension *_pExt)
 {
 	if (!_pExt)
-	{
 		return false;
-	}
 
 	CExtension *pExt = (CExtension *)_pExt;
 
 	if (m_Libs.find(pExt) == m_Libs.end())
-	{
 		return false;
-	}
 
 	/* Tell it to unload */
 	if (pExt->IsLoaded())
-	{
-		IExtensionInterface *pAPI = pExt->GetAPI();
-		pAPI->OnExtensionUnload();
-	}
+		pExt->GetAPI()->OnExtensionUnload();
 
-	/* First remove us from internal lists */
+	// Remove us from internal lists. Note that because we do this, it's
+	// possible that our extension could be added back if another plugin
+	// tries to load during this process. If we ever find this to happen,
+	// we can just block plugin loading.
 	g_ShareSys.RemoveInterfaces(_pExt);
 	m_Libs.remove(pExt);
 
@@ -796,13 +826,9 @@ bool CExtensionManager::UnloadExtension(IExtension *_pExt)
 		{
 			pDep = (*c_iter);
 			if ((pAPI=pDep->GetAPI()) == NULL)
-			{
 				continue;
-			}
 			if (pDep == pExt)
-			{
 				continue;
-			}
 			/* Now, get its dependency list */
 			bool dropped = false;
 			List<IfaceInfo>::iterator i_iter = pDep->m_Deps.begin();
@@ -831,13 +857,9 @@ bool CExtensionManager::UnloadExtension(IExtension *_pExt)
 			while (i_iter != pDep->m_ChildDeps.end())
 			{
 				if ((*i_iter).owner == pExt)
-				{
 					i_iter = pDep->m_ChildDeps.erase(i_iter);
-				}
 				else
-				{
 					i_iter++;
-				}
 			}
 		}
 
@@ -855,6 +877,11 @@ bool CExtensionManager::UnloadExtension(IExtension *_pExt)
 			glob = glob->m_pGlobalClassNext;
 		}
 	}
+
+	// Everything has been informed that we're unloading, so give the
+	// extension one last notification.
+	if (pExt->IsLoaded() && pExt->GetAPI()->GetExtensionVersion() >= 7)
+		pExt->GetAPI()->OnDependenciesDropped();
 
 	pExt->Unload();
 	delete pExt;

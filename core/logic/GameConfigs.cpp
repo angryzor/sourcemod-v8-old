@@ -54,6 +54,7 @@ IGameConfig *g_pGameConf = NULL;
 static char g_Game[256];
 static char g_GameDesc[256] = {'!', '\0'};
 static char g_GameName[256] = {'$', '\0'};
+static const char *g_pParseEngine = NULL;
 
 #define PSTATE_NONE						0
 #define PSTATE_GAMES					1
@@ -76,10 +77,12 @@ static char g_GameName[256] = {'$', '\0'};
 #define PLATFORM_SERVER_BINARY		"server.dll"
 #elif defined PLATFORM_LINUX
 #define PLATFORM_NAME				"linux"
+#define PLATFORM_COMPAT_ALT			"mac"				/* Alternate platform name if game data is missing for primary one */
 #define PLATFORM_SERVER_BINARY		"server_i486.so"
 #elif defined PLATFORM_APPLE
-#define PLATFORM_NAME               "mac"
-#define PLATFORM_SERVER_BINARY      "server.dylib"
+#define PLATFORM_NAME				"mac"
+#define PLATFORM_COMPAT_ALT			"linux"
+#define PLATFORM_SERVER_BINARY		"server.dylib"
 #endif
 
 struct TempSigInfo
@@ -89,7 +92,7 @@ struct TempSigInfo
 		library[0] = '\0';
 		sig[0] = '\0';
 	}
-	char sig[512];
+	char sig[1024];
 	char library[64];
 } s_TempSig;
 unsigned int s_ServerBinCRC;
@@ -112,24 +115,56 @@ static bool DoesGameMatch(const char *value)
 
 static bool DoesEngineMatch(const char *value)
 {
-	return strcmp(value, smcore.GetSourceEngineName()) == 0;
+	return strcmp(value, g_pParseEngine) == 0;
 }
 
-CGameConfig::CGameConfig(const char *file)
+static inline bool DoesPlatformMatch(const char *platform)
+{
+	return strcmp(platform, PLATFORM_NAME) == 0;
+}
+
+static inline bool IsPlatformCompatible(const char *platform, bool *hadPrimaryMatch)
+{
+	if (DoesPlatformMatch(platform))
+	{
+#if defined PLATFORM_COMPAT_ALT
+		*hadPrimaryMatch = true;
+#endif
+		return true;
+	}
+
+#if defined PLATFORM_COMPAT_ALT
+	/* If entry hasn't been found for the primary platform name, check for compatible alternate */
+	if (!*hadPrimaryMatch)
+		return strcmp(platform, PLATFORM_COMPAT_ALT) == 0;
+#endif
+
+	return false;
+}
+
+CGameConfig::CGameConfig(const char *file, const char *engine)
 {
 	strncopy(m_File, file, sizeof(m_File));
-	m_pAddresses = new KTrie<AddressConf>();
-	m_pStrings = new BaseStringTable(512);
-	m_RefCount = 0;
 
 	m_CustomLevel = 0;
 	m_CustomHandler = NULL;
+
+	if (!engine)
+		m_pEngine = smcore.GetSourceEngineName();
+	else
+		m_pEngine = engine;
+
+	if (strcmp(m_pEngine, "css") == 0 || strcmp(m_pEngine, "dods") == 0 || strcmp(m_pEngine, "hl2dm") == 0 || strcmp(m_pEngine, "tf2") == 0)
+		this->SetBaseEngine("orangebox_valve");
+	else if (strcmp(m_pEngine, "nucleardawn") == 0)
+		this->SetBaseEngine("left4dead2");
+	else
+		this->SetBaseEngine(NULL);
 }
 
 CGameConfig::~CGameConfig()
 {
-	delete m_pAddresses;
-	delete m_pStrings;
+	g_GameConfigs.RemoveCachedConfig(this);
 }
 
 SMCResult CGameConfig::ReadSMC_NewSection(const SMCStates *states, const char *name)
@@ -201,13 +236,10 @@ SMCResult CGameConfig::ReadSMC_NewSection(const SMCStates *states, const char *n
 			}
 			else
 			{
-				ITextListener_SMC **pListen = g_GameConfigs.m_customHandlers.retrieve(name);
-
-				if (pListen != NULL)
+				if (g_GameConfigs.m_customHandlers.retrieve(name, &m_CustomHandler))
 				{
 					m_CustomLevel = 0;
 					m_ParseState = PSTATE_GAMEDEFS_CUSTOM;
-					m_CustomHandler = *pListen;
 					m_CustomHandler->ReadSMC_ParseStart();
 					break;
 				}
@@ -222,6 +254,7 @@ SMCResult CGameConfig::ReadSMC_NewSection(const SMCStates *states, const char *n
 			m_Class[0] = '\0';
 			strncopy(m_offset, name, sizeof(m_offset));
 			m_ParseState = PSTATE_GAMEDEFS_OFFSETS_OFFSET;
+			matched_platform = false;
 			break;
 		}
 	case PSTATE_GAMEDEFS_SIGNATURES:
@@ -229,6 +262,7 @@ SMCResult CGameConfig::ReadSMC_NewSection(const SMCStates *states, const char *n
 			strncopy(m_offset, name, sizeof(m_offset));
 			s_TempSig.Reset();
 			m_ParseState = PSTATE_GAMEDEFS_SIGNATURES_SIG;
+			matched_platform = false;
 			break;
 		}
 	case PSTATE_GAMEDEFS_CRC:
@@ -293,7 +327,7 @@ SMCResult CGameConfig::ReadSMC_NewSection(const SMCStates *states, const char *n
 		}
 	case PSTATE_GAMEDEFS_ADDRESSES_ADDRESS:
 		{
-			if (strcmp(name, PLATFORM_NAME) == 0)
+			if (DoesPlatformMatch(name))
 			{
 				m_ParseState = PSTATE_GAMEDEFS_ADDRESSES_ADDRESS_READ;
 			}
@@ -341,11 +375,12 @@ SMCResult CGameConfig::ReadSMC_KeyValue(const SMCStates *states, const char *key
 			strncopy(m_Class, value, sizeof(m_Class));
 		} else if (strcmp(key, "prop") == 0) {
 			strncopy(m_Prop, value, sizeof(m_Prop));
-		} else if (strcmp(key, PLATFORM_NAME) == 0) {
+		} else if (IsPlatformCompatible(key, &matched_platform)) {
 			m_Offsets.replace(m_offset, atoi(value));
 		}
 	} else if (m_ParseState == PSTATE_GAMEDEFS_KEYS) {
-		m_Keys.replace(key, m_pStrings->AddString(value));
+		ke::AString vstr(value);
+		m_Keys.replace(key, ke::Move(vstr));
 	} else if (m_ParseState == PSTATE_GAMEDEFS_SUPPORTED) {
 		if (strcmp(key, "game") == 0)
 		{
@@ -372,14 +407,14 @@ SMCResult CGameConfig::ReadSMC_KeyValue(const SMCStates *states, const char *key
 			}
 		}
 	} else if (m_ParseState == PSTATE_GAMEDEFS_SIGNATURES_SIG) {
-		if (strcmp(key, PLATFORM_NAME) == 0)
+		if (IsPlatformCompatible(key, &matched_platform))
 		{
 			strncopy(s_TempSig.sig, value, sizeof(s_TempSig.sig));
 		} else if (strcmp(key, "library") == 0) {
 			strncopy(s_TempSig.library, value, sizeof(s_TempSig.library));
 		}
 	} else if (m_ParseState == PSTATE_GAMEDEFS_CRC_BINARY) {
-		if (strcmp(key, PLATFORM_NAME) == 0 
+		if (DoesPlatformMatch(key)
 			&& s_ServerBinCRC_Ok
 			&& !bShouldBeReadingDefault)
 		{
@@ -524,7 +559,9 @@ SMCResult CGameConfig::ReadSMC_LeavingSection(const SMCStates *states)
 				smcore.LogError("[SM] Unrecognized library \"%s\" (gameconf \"%s\")", 
 					s_TempSig.library, 
 					m_CurFile);
-			} else {
+			}
+			else if (s_TempSig.sig[0])
+			{
 				if (s_TempSig.sig[0] == '@')
 				{
 #if defined PLATFORM_WINDOWS
@@ -559,28 +596,28 @@ SMCResult CGameConfig::ReadSMC_LeavingSection(const SMCStates *states)
 					}
 #endif
 				}
-				if (final_addr)
+
+				if (!final_addr)
 				{
-					goto skip_find;
+					/* First, preprocess the signature */
+					unsigned char real_sig[511];
+					size_t real_bytes;
+					size_t length;
+
+					real_bytes = 0;
+					length = strlen(s_TempSig.sig);
+
+					real_bytes = UTIL_DecodeHexString(real_sig, sizeof(real_sig), s_TempSig.sig);
+
+					if (real_bytes >= 1)
+					{
+						final_addr = g_MemUtils.FindPattern(addrInBase, (char*) real_sig, real_bytes);
+					}
 				}
-				/* First, preprocess the signature */
-				unsigned char real_sig[511];
-				size_t real_bytes;
-				size_t length;
 
-				real_bytes = 0;
-				length = strlen(s_TempSig.sig);
-
-				real_bytes = UTIL_DecodeHexString(real_sig, sizeof(real_sig), s_TempSig.sig);
-
-				if (real_bytes >= 1)
-				{
-					final_addr = g_MemUtils.FindPattern(addrInBase, (char*)real_sig, real_bytes);
-				}
+				m_Sigs.replace(m_offset, final_addr);
 			}
 
-skip_find:
-			m_Sigs.replace(m_offset, final_addr);
 			m_ParseState = PSTATE_GAMEDEFS_SIGNATURES;
 
 			break;
@@ -594,19 +631,11 @@ skip_find:
 		{
 			m_ParseState = PSTATE_GAMEDEFS_ADDRESSES;
 
-			if (m_Address[0] == '\0')
+			if (m_Address[0] != '\0' && m_AddressSignature[0] != '\0')
 			{
-				smcore.LogError("[SM] Address sections must have names (gameconf \"%s\")", m_CurFile);
-				break;
+				AddressConf addrConf(m_AddressSignature, sizeof(m_AddressSignature), m_AddressReadCount, m_AddressRead);
+				m_Addresses.replace(m_Address, addrConf);
 			}
-			if (m_AddressSignature[0] == '\0')
-			{
-				smcore.LogError("[SM] Address section for \"%s\" did not specify a signature (gameconf \"%s\")", m_Address, m_CurFile);
-				break;
-			}
-
-			AddressConf addrConf(m_AddressSignature, sizeof(m_AddressSignature), m_AddressReadCount, m_AddressRead);
-			m_pAddresses->replace(m_Address, addrConf);
 
 			break;
 		}
@@ -750,11 +779,10 @@ static MasterReader master_reader;
 bool CGameConfig::Reparse(char *error, size_t maxlength)
 {
 	/* Reset cached data */
-	m_pStrings->Reset();
 	m_Offsets.clear();
 	m_Props.clear();
 	m_Keys.clear();
-	m_pAddresses->clear();
+	m_Addresses.clear();
 
 	char path[PLATFORM_MAX_PATH];
 
@@ -764,7 +792,19 @@ bool CGameConfig::Reparse(char *error, size_t maxlength)
 	{
 		/* Nope, use the old mechanism. */
 		smcore.Format(path, sizeof(path), "%s.txt", m_File);
-		return EnterFile(path, error, maxlength);
+		if (!EnterFile(path, error, maxlength))
+		{
+			return false;
+		}
+
+		/* Allow customization. */
+		g_pSM->BuildPath(Path_SM, path, sizeof(path), "gamedata/custom/%s.txt", m_File);
+		if (libsys->PathExists(path))
+		{
+			smcore.Format(path, sizeof(path), "custom/%s.txt", m_File);
+			return EnterFile(path, error, maxlength);
+		}
+		return true;
 	}
 
 	/* Otherwise, it's time to parse the master. */
@@ -772,19 +812,29 @@ bool CGameConfig::Reparse(char *error, size_t maxlength)
 	SMCStates state = {0, 0};
 	List<String> fileList;
 	master_reader.fileList = &fileList;
+	const char *pEngine[2] = { m_pBaseEngine, m_pEngine  };
 
-	err = textparsers->ParseSMCFile(path, &master_reader, &state, error, maxlength);
-	if (err != SMCError_Okay)
+	for (unsigned char iter = 0; iter < SM_ARRAYSIZE(pEngine); ++iter)
 	{
-		const char *msg = textparsers->GetSMCErrorString(err);
+		if (pEngine[iter] == NULL)
+		{
+			continue;
+		}
 
-		smcore.LogError("[SM] Error parsing master gameconf file \"%s\":", path);
-		smcore.LogError("[SM] Error %d on line %d, col %d: %s", 
-			err,
-			state.line,
-			state.col,
-			msg ? msg : "Unknown error");
-		return false;
+		this->SetParseEngine(pEngine[iter]);
+		err = textparsers->ParseSMCFile(path, &master_reader, &state, error, maxlength);
+		if (err != SMCError_Okay)
+		{
+			const char *msg = textparsers->GetSMCErrorString(err);
+
+			smcore.LogError("[SM] Error parsing master gameconf file \"%s\":", path);
+			smcore.LogError("[SM] Error %d on line %d, col %d: %s", 
+				err,
+				state.line,
+				state.col,
+				msg ? msg : "Unknown error");
+			return false;
+		}
 	}
 
 	/* Go through each file we found and parse it. */
@@ -850,51 +900,64 @@ bool CGameConfig::EnterFile(const char *file, char *error, size_t maxlength)
 	m_IgnoreLevel = 0;
 	bShouldBeReadingDefault = true;
 	m_ParseState = PSTATE_NONE;
+	const char *pEngine[2] = { m_pBaseEngine, m_pEngine };
 
-	if ((err=textparsers->ParseSMCFile(m_CurFile, this, &state, error, maxlength))
-		!= SMCError_Okay)
+	for (unsigned char iter = 0; iter < SM_ARRAYSIZE(pEngine); ++iter)
 	{
-		const char *msg;
-
-		msg = textparsers->GetSMCErrorString(err);
-
-		smcore.LogError("[SM] Error parsing gameconfig file \"%s\":", m_CurFile);
-		smcore.LogError("[SM] Error %d on line %d, col %d: %s", 
-			err,
-			state.line,
-			state.col,
-			msg ? msg : "Unknown error");
-
-		if (m_ParseState == PSTATE_GAMEDEFS_CUSTOM)
+		if (pEngine[iter] == NULL)
 		{
-			//error occurred while parsing a custom section
-			m_CustomHandler->ReadSMC_ParseEnd(true, true);
-			m_CustomHandler = NULL;
-			m_CustomLevel = 0;
+			continue;
 		}
 
-		return false;
+		this->SetParseEngine(pEngine[iter]);
+		if ((err=textparsers->ParseSMCFile(m_CurFile, this, &state, error, maxlength))
+			!= SMCError_Okay)
+		{
+			const char *msg = textparsers->GetSMCErrorString(err);
+
+			smcore.LogError("[SM] Error parsing gameconfig file \"%s\":", m_CurFile);
+			smcore.LogError("[SM] Error %d on line %d, col %d: %s", 
+				err,
+				state.line,
+				state.col,
+				msg ? msg : "Unknown error");
+
+			if (m_ParseState == PSTATE_GAMEDEFS_CUSTOM)
+			{
+				//error occurred while parsing a custom section
+				m_CustomHandler->ReadSMC_ParseEnd(true, true);
+				m_CustomHandler = NULL;
+				m_CustomLevel = 0;
+			}
+
+			return false;
+		}
 	}
 
 	return true;
 }
 
+void CGameConfig::SetBaseEngine(const char *engine)
+{
+	m_pBaseEngine = engine;
+}
+
+void CGameConfig::SetParseEngine(const char *engine)
+{
+	g_pParseEngine = engine;
+}
+
 bool CGameConfig::GetOffset(const char *key, int *value)
 {
-	int *pvalue;
-	if ((pvalue = m_Offsets.retrieve(key)) == NULL)
-		return false;
-
-	*value = *pvalue;
-	return true;
+	return m_Offsets.retrieve(key, value);
 }
 
 const char *CGameConfig::GetKeyValue(const char *key)
 {
-	int *pkey;
-	if ((pkey = m_Keys.retrieve(key)) == NULL)
+	StringHashMap<ke::AString>::Result r = m_Keys.find(key);
+	if (!r.found())
 		return NULL;
-	return m_pStrings->GetString(*pkey);
+	return r->value.chars();
 }
 
 //memory addresses below 0x10000 are automatically considered invalid for dereferencing
@@ -902,25 +965,25 @@ const char *CGameConfig::GetKeyValue(const char *key)
 
 bool CGameConfig::GetAddress(const char *key, void **retaddr)
 {
-	AddressConf *addrConf;
-
-	addrConf = m_pAddresses->retrieve(key);
-	if (!addrConf)
+	StringHashMap<AddressConf>::Result r = m_Addresses.find(key);
+	if (!r.found())
 	{
 		*retaddr = NULL;
 		return false;
 	}
+
+	AddressConf &addrConf = r->value;
 
 	void *addr;
-	if (!GetMemSig(addrConf->signatureName, &addr))
+	if (!GetMemSig(addrConf.signatureName, &addr))
 	{
 		*retaddr = NULL;
 		return false;
 	}
 
-	for (int i = 0; i < addrConf->readCount; ++i)
+	for (int i = 0; i < addrConf.readCount; ++i)
 	{
-		int offset = addrConf->read[i];
+		int offset = addrConf.read[i];
 
 		//NULLs in the middle of an indirection chain are bad, end NULL is ok
 		if (addr ==  NULL || reinterpret_cast<uintptr_t>(addr) < VALID_MINIMUM_MEMORY_ADDRESS)
@@ -951,32 +1014,15 @@ CGameConfig::AddressConf::AddressConf(char *sigName, unsigned sigLength, unsigne
 
 SendProp *CGameConfig::GetSendProp(const char *key)
 {
-	SendProp **pProp;
-
-	if ((pProp = m_Props.retrieve(key)) == NULL)
+	SendProp *prop;
+	if (!m_Props.retrieve(key, &prop))
 		return NULL;
-
-	return *pProp;
+	return prop;
 }
 
 bool CGameConfig::GetMemSig(const char *key, void **addr)
 {
-	void **paddr;
-	if ((paddr = m_Sigs.retrieve(key)) == NULL)
-		return false;
-	*addr = *paddr;
-	return true;
-}
-
-void CGameConfig::IncRefCount()
-{
-	m_RefCount++;
-}
-
-unsigned int CGameConfig::DecRefCount()
-{
-	m_RefCount--;
-	return m_RefCount;
+	return m_Sigs.retrieve(key, addr);
 }
 
 GameConfigManager::GameConfigManager()
@@ -1027,12 +1073,10 @@ bool GameConfigManager::LoadGameConfigFile(const char *file, IGameConfig **_pCon
 #endif
 
 	CGameConfig *pConfig;
-	CGameConfig **ppConfig;
 
-	if ((ppConfig = m_Lookup.retrieve(file)) != NULL)
+	if (m_Lookup.retrieve(file, &pConfig))
 	{
-		pConfig = *ppConfig;
-		pConfig->IncRefCount();
+		pConfig->AddRef();
 		*_pConfig = pConfig;
 		return true;
 	}
@@ -1046,25 +1090,16 @@ bool GameConfigManager::LoadGameConfigFile(const char *file, IGameConfig **_pCon
 		retval = pConfig->Reparse(error, maxlength);
 	}
 
-	m_cfgs.push_back(pConfig);
 	m_Lookup.insert(file, pConfig);
 
-	pConfig->IncRefCount();
-
 	*_pConfig = pConfig;
-
 	return retval;
 }
 
 void GameConfigManager::CloseGameConfigFile(IGameConfig *cfg)
 {
 	CGameConfig *pConfig = (CGameConfig *)cfg;
-
-	if (pConfig->DecRefCount() == 0)
-	{
-		m_Lookup.remove(pConfig->m_File);
-		delete pConfig;
-	}
+	pConfig->Release();
 }
 
 extern Handle_t g_GameConfigsType;
@@ -1088,22 +1123,16 @@ void GameConfigManager::AddUserConfigHook(const char *sectionname, ITextListener
 	m_customHandlers.insert(sectionname, listener);
 }
 
-void GameConfigManager::RemoveUserConfigHook(const char *sectionname, ITextListener_SMC *listener)
+void GameConfigManager::RemoveUserConfigHook(const char *sectionname, ITextListener_SMC *aListener)
 {
-	ITextListener_SMC **pListener = m_customHandlers.retrieve(sectionname);
-
-	if (pListener == NULL)
-	{
+	ITextListener_SMC *listener;
+	if (!m_customHandlers.retrieve(sectionname, &listener))
 		return;
-	}
 
-	if (*pListener != listener)
-	{
+	if (listener != aListener)
 		return;
-	}
 
 	m_customHandlers.remove(sectionname);
-	
 	return;
 }
 
@@ -1113,4 +1142,9 @@ void GameConfigManager::AcquireLock()
 
 void GameConfigManager::ReleaseLock()
 {
+}
+
+void GameConfigManager::RemoveCachedConfig(CGameConfig *config)
+{
+	m_Lookup.remove(config->m_File);
 }

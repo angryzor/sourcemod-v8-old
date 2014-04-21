@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 sw=4 :
+ * vim: set ts=4 sw=4 tw=99 noet:
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2010 AlliedModders LLC.  All rights reserved.
@@ -39,13 +39,13 @@
 #include "sm_stringutil.h"
 #include "Logger.h"
 #include "sm_srvcmds.h"
-#include "ForwardSys.h"
 #include "TimerSys.h"
 #include "logic_bridge.h"
 #include "PlayerManager.h"
 #include "AdminCache.h"
 #include "HalfLife2.h"
 #include "CoreConfig.h"
+#include "IDBDriver.h"
 #if SOURCE_ENGINE == SE_DOTA
 #include "convar_sm_dota.h"
 #elif SOURCE_ENGINE >= SE_ALIENSWARM
@@ -84,6 +84,7 @@ IScriptManager *scripts;
 IShareSys *sharesys;
 IExtensionSys *extsys;
 IHandleSys *handlesys;
+IForwardManager *forwardsys;
 
 class VEngineServer_Logic : public IVEngineServer_Logic
 {
@@ -116,6 +117,30 @@ public:
 	void FindClose(FileFindHandle_t handle)
 	{
 		filesystem->FindClose(handle);
+	}
+	FileHandle_t Open(const char *pFileName, const char *pOptions, const char *pathID = 0)
+	{
+		return filesystem->Open(pFileName, pOptions, pathID);
+	}
+	void Close(FileHandle_t file)
+	{
+		filesystem->Close(file);
+	}
+	char *ReadLine(char *pOutput, int maxChars, FileHandle_t file)
+	{
+		return filesystem->ReadLine(pOutput, maxChars, file);
+	}
+	bool EndOfFile(FileHandle_t file)
+	{
+		return filesystem->EndOfFile(file);
+	}
+	bool FileExists(const char *pFileName, const char *pPathID = 0)
+	{
+		return filesystem->FileExists(pFileName, pPathID);
+	}
+	unsigned int Size(const char *pFileName, const char *pPathID = 0)
+	{
+		return filesystem->Size(pFileName, pPathID);
 	}
 };
 
@@ -166,11 +191,6 @@ static void log_to_game(const char *message)
 	Engine_LogPrintWrapper(message);
 }
 
-static bool file_exists(const char *path)
-{
-	return basefilesystem->FileExists(path);
-}
-
 static const char *get_cvar_string(ConVar* cvar)
 {
 	return cvar->GetString();
@@ -185,6 +205,7 @@ static bool get_game_name(char *buffer, size_t maxlength)
 		if ((str = pGameInfo->GetString("game", NULL)) != NULL)
 		{
 			strncopy(buffer, str, maxlength);
+			pGameInfo->deleteThis();
 			return true;
 		}
 	}
@@ -214,16 +235,30 @@ static const char *get_source_engine_name()
 	return "eye";
 #elif SOURCE_ENGINE == SE_CSS
 	return "css";
-#elif SOURCE_ENGINE == SE_ORANGEBOXVALVE
-	return "orangebox_valve";
+#elif SOURCE_ENGINE == SE_HL2DM
+	return "hl2dm";
+#elif SOURCE_ENGINE == SE_DODS
+	return "dods";
+#elif SOURCE_ENGINE == SE_SDK2013
+	return "sdk2013";
+#elif SOURCE_ENGINE == SE_TF2
+	return "tf2";
 #elif SOURCE_ENGINE == SE_LEFT4DEAD
 	return "left4dead";
+#elif SOURCE_ENGINE == SE_NUCLEARDAWN
+	return "nucleardawn";
+#elif SOURCE_ENGINE == SE_CONTAGION
+	return "contagion";
 #elif SOURCE_ENGINE == SE_LEFT4DEAD2
 	return "left4dead2";
 #elif SOURCE_ENGINE == SE_ALIENSWARM
 	return "alienswarm";
 #elif SOURCE_ENGINE == SE_PORTAL2
 	return "portal2";
+#elif SOURCE_ENGINE == SE_BLADE
+	return "blade";
+#elif SOURCE_ENGINE == SE_INSURGENCY
+	return "insurgency";
 #elif SOURCE_ENGINE == SE_CSGO
 	return "csgo";
 #elif SOURCE_ENGINE == SE_DOTA
@@ -233,7 +268,18 @@ static const char *get_source_engine_name()
 
 static bool symbols_are_hidden()
 {
-#if (SOURCE_ENGINE == SE_CSS) || (SOURCE_ENGINE == SE_ORANGEBOXVALVE) || (SOURCE_ENGINE == SE_LEFT4DEAD) || (SOURCE_ENGINE == SE_LEFT4DEAD2) || (SOURCE_ENGINE == SE_CSGO) || (SOURCE_ENGINE == SE_DOTA)
+#if (SOURCE_ENGINE == SE_CSS)            \
+	|| (SOURCE_ENGINE == SE_HL2DM)       \
+	|| (SOURCE_ENGINE == SE_DODS)        \
+	|| (SOURCE_ENGINE == SE_SDK2013)     \
+	|| (SOURCE_ENGINE == SE_TF2)         \
+	|| (SOURCE_ENGINE == SE_LEFT4DEAD)   \
+	|| (SOURCE_ENGINE == SE_NUCLEARDAWN) \
+	|| (SOURCE_ENGINE == SE_LEFT4DEAD2)  \
+	|| (SOURCE_ENGINE == SE_INSURGENCY)  \
+	|| (SOURCE_ENGINE == SE_BLADE)       \
+	|| (SOURCE_ENGINE == SE_CSGO)        \
+	|| (SOURCE_ENGINE == SE_DOTA)
 	return true;
 #else
 	return false;
@@ -253,6 +299,19 @@ static bool is_map_loading()
 static bool is_map_running()
 {
 	return g_SourceMod.IsMapRunning();
+}
+
+static DatabaseInfo keyvalues_to_dbinfo(KeyValues *kv)
+{
+	DatabaseInfo info;
+	info.database = kv->GetString("database", "");
+	info.driver = kv->GetString("driver", "default");
+	info.host = kv->GetString("host", "");
+	info.maxTimeout = kv->GetInt("timeout", 0);
+	info.pass = kv->GetString("pass", "");
+	info.port = kv->GetInt("port", 0);
+	info.user = kv->GetString("user", "");
+	return info;
 }
 
 int read_cmd_argc(const CCommand &args)
@@ -311,6 +370,8 @@ void do_global_plugin_loads()
 #define GAMEFIX "2.l4d"
 #elif SOURCE_ENGINE == SE_LEFT4DEAD2
 #define GAMEFIX "2.l4d2"
+#elif SOURCE_ENGINE == SE_NUCLEARDAWN
+#define GAMEFIX "2.nd"
 #elif SOURCE_ENGINE == SE_ALIENSWARM
 #define GAMEFIX "2.swarm"
 #elif SOURCE_ENGINE == SE_ORANGEBOX
@@ -321,16 +382,28 @@ void do_global_plugin_loads()
 #define GAMEFIX "2.eye"
 #elif SOURCE_ENGINE == SE_CSS
 #define GAMEFIX "2.css"
-#elif SOURCE_ENGINE == SE_ORANGEBOXVALVE
-#define GAMEFIX "2.ep2v"
+#elif SOURCE_ENGINE == SE_HL2DM
+#define GAMEFIX "2.hl2dm"
+#elif SOURCE_ENGINE == SE_DODS
+#define GAMEFIX "2.dods"
+#elif SOURCE_ENGINE == SE_SDK2013
+#define GAMEFIX "2.sdk2013"
+#elif SOURCE_ENGINE == SE_TF2
+#define GAMEFIX "2.tf2"
 #elif SOURCE_ENGINE == SE_DARKMESSIAH
 #define GAMEFIX "2.darkm"
 #elif SOURCE_ENGINE == SE_PORTAL2
 #define GAMEFIX "2.portal2"
+#elif SOURCE_ENGINE == SE_BLADE
+#define GAMEFIX "2.blade"
+#elif SOURCE_ENGINE == SE_INSURGENCY
+#define GAMEFIX "2.insurgency"
 #elif SOURCE_ENGINE == SE_CSGO
 #define GAMEFIX "2.csgo"
 #elif SOURCE_ENGINE == SE_DOTA
 #define GAMEFIX "2.dota"
+#elif SOURCE_ENGINE == SE_CONTAGION
+#define GAMEFIX "2.contagion"
 #else
 #define GAMEFIX "2.ep1"
 #endif //(SOURCE_ENGINE == SE_LEFT4DEAD) || (SOURCE_ENGINE == SE_LEFT4DEAD2)
@@ -348,7 +421,6 @@ static sm_core_t core_bridge =
 	reinterpret_cast<IVEngineServer*>(&logic_engine),
 	reinterpret_cast<IFileSystem*>(&logic_filesystem),
 	&g_RootMenu,
-	&g_Forwards,
 	&g_Timers,
 	&g_Players,
 	&g_Admins,
@@ -365,7 +437,6 @@ static sm_core_t core_bridge =
 	log_message,
 	log_to_file,
 	log_to_game,
-	file_exists,
 	get_cvar_string,
 	UTIL_Format,
 	UTIL_FormatArgs,
@@ -385,6 +456,7 @@ static sm_core_t core_bridge =
 	do_global_plugin_loads,
 	SM_AreConfigsExecuted,
 	SM_ExecuteForPlugin,
+	keyvalues_to_dbinfo,
 	GAMEFIX,
 	&serverGlobals
 };
@@ -397,6 +469,7 @@ void InitLogicBridge()
 
 	core_bridge.engineFactory = (void *)g_SMAPI->GetEngineFactory(false);
 	core_bridge.serverFactory = (void *)g_SMAPI->GetServerFactory(false);
+	core_bridge.listeners = SMGlobalClass::head;
 
 	ILibrary *mmlib;
 	char path[PLATFORM_MAX_PATH];
@@ -428,6 +501,7 @@ void InitLogicBridge()
 	extsys = logicore.extsys;
 	g_pCoreIdent = logicore.core_ident;
 	handlesys = logicore.handlesys;
+	forwardsys = logicore.forwardsys;
 }
 
 bool StartLogicBridge(char *error, size_t maxlength)

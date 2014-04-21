@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2010 AlliedModders LLC.  All rights reserved.
@@ -30,6 +30,7 @@
  */
 
 #include "sm_globals.h"
+#include "sourcemod.h"
 #include "HalfLife2.h"
 #include "sourcemm_api.h"
 #include "ConVarManager.h"
@@ -40,12 +41,12 @@
 #include "AdminCache.h"
 #include <inetchannel.h>
 #include <bitbuf.h>
-#include <sm_trie_tpl.h>
 #include <tier0/dbg.h>
 #include "Logger.h"
 #include "ConsoleDetours.h"
 #include "ConCommandBaseIterator.h"
 #include "logic_bridge.h"
+#include <sm_namehashset.h>
 
 #if SOURCE_ENGINE == SE_CSGO || SOURCE_ENGINE == SE_DOTA
 #include <netmessages.pb.h>
@@ -133,12 +134,11 @@ public:
 	}
 	bool GetFlags(const char *name, int *flags)
 	{
-		ConCommandBase **ppCmd;
 		ConCommandBase *pCmd;
-		if ((ppCmd=m_CmdFlags.retrieve(name)))
+		if (m_CmdFlags.retrieve(name, &pCmd))
 		{
-			TrackConCommandBase((*ppCmd), this);
-			*flags = (*ppCmd)->GetFlags();
+			TrackConCommandBase(pCmd, this);
+			*flags = pCmd->GetFlags();
 			return true;
 		}
 		else if ((pCmd=FindCommandBase(name)))
@@ -155,12 +155,11 @@ public:
 	}
 	bool SetFlags(const char *name, int flags)
 	{
-		ConCommandBase **ppCmd;
 		ConCommandBase *pCmd;
-		if ((ppCmd=m_CmdFlags.retrieve(name)))
+		if (m_CmdFlags.retrieve(name, &pCmd))
 		{
-			(*ppCmd)->SetFlags(flags);
-			TrackConCommandBase((*ppCmd), this);
+			pCmd->SetFlags(flags);
+			TrackConCommandBase(pCmd, this);
 			return true;
 		}
 		else if ((pCmd=FindCommandBase(name)))
@@ -176,7 +175,14 @@ public:
 		}
 	}
 private:
-	KTrie<ConCommandBase *> m_CmdFlags;
+	struct ConCommandPolicy
+	{
+		static inline bool matches(const char *name, ConCommandBase *base)
+		{
+			return strcmp(name, base->GetName()) == 0;
+		}
+	};
+	NameHashSet<ConCommandBase *, ConCommandPolicy> m_CmdFlags;
 } s_CommandFlagsHelper;
 
 #if SOURCE_ENGINE < SE_ORANGEBOX
@@ -878,11 +884,7 @@ static cell_t sm_PrintToConsole(IPluginContext *pCtx, const cell_t *params)
 
 	if (index != 0)
 	{
-#if SOURCE_ENGINE == SE_DOTA
-		engine->ClientPrintf(pPlayer->GetIndex(), buffer);
-#else
-		engine->ClientPrintf(pPlayer->GetEdict(), buffer);
-#endif
+		pPlayer->PrintToConsole(buffer);
 	} else {
 		META_CONPRINT(buffer);
 	}
@@ -916,7 +918,7 @@ cell_t g_ServerCommandBufferLength;
 
 bool g_ShouldCatchSpew = false;
 
-#if SOURCE_ENGINE < SE_LEFT4DEAD2
+#if SOURCE_ENGINE < SE_NUCLEARDAWN
 SpewOutputFunc_t g_OriginalSpewOutputFunc = NULL;
 
 SpewRetval_t SourcemodSpewOutputFunc(SpewType_t spewType, tchar const *pMsg)
@@ -955,7 +957,7 @@ CON_COMMAND(sm_conhook_start, "")
 		return;
 	}
 
-#if SOURCE_ENGINE < SE_LEFT4DEAD2
+#if SOURCE_ENGINE < SE_NUCLEARDAWN
 	g_OriginalSpewOutputFunc = GetSpewOutputFunc();
 	SpewOutputFunc(SourcemodSpewOutputFunc);
 #else
@@ -976,7 +978,7 @@ CON_COMMAND(sm_conhook_stop, "")
 		return;
 	}
 
-#if SOURCE_ENGINE < SE_LEFT4DEAD2
+#if SOURCE_ENGINE < SE_NUCLEARDAWN
 	SpewOutputFunc(g_OriginalSpewOutputFunc);
 #else
 	LoggingSystem_PopLoggingState(false);
@@ -1106,6 +1108,8 @@ static cell_t FakeClientCommand(IPluginContext *pContext, const cell_t *params)
 		return pContext->ThrowNativeError("Client %d is not connected", params[1]);
 	}
 
+	g_SourceMod.SetGlobalTarget(params[1]);
+
 	char buffer[256];
 	g_SourceMod.FormatString(buffer, sizeof(buffer), pContext, params, 2);
 
@@ -1136,6 +1140,8 @@ static cell_t FakeClientCommandEx(IPluginContext *pContext, const cell_t *params
 	{
 		return pContext->ThrowNativeError("Client %d is not connected", params[1]);
 	}
+
+	g_SourceMod.SetGlobalTarget(params[1]);
 
 	char buffer[256];
 	g_SourceMod.FormatString(buffer, sizeof(buffer), pContext, params, 2);
@@ -1185,18 +1191,12 @@ static cell_t ReplyToCommand(IPluginContext *pContext, const cell_t *params)
 		return pContext->ThrowNativeError("Client %d is not connected", params[1]);
 	}
 
-	g_SourceMod.SetGlobalTarget(params[1]);
-
 	unsigned int replyto = g_ChatTriggers.GetReplyTo();
 	if (replyto == SM_REPLY_CONSOLE)
 	{
 		buffer[len++] = '\n';
 		buffer[len] = '\0';
-#if SOURCE_ENGINE == SE_DOTA
-		engine->ClientPrintf(pPlayer->GetIndex(), buffer);
-#else
-		engine->ClientPrintf(pPlayer->GetEdict(), buffer);
-#endif
+		pPlayer->PrintToConsole(buffer);
 	} else if (replyto == SM_REPLY_CHAT) {
 		if (len >= 191)
 		{
@@ -1271,7 +1271,7 @@ static cell_t ReadCommandIterator(IPluginContext *pContext, const cell_t *params
 	
 	cell_t *addr;
 	pContext->LocalToPhysAddr(params[4], &addr);
-	*addr = pInfo->admin.eflags;
+	*addr = pInfo->eflags;
 
 	iter->iter++;
 

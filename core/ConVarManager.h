@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -39,8 +39,10 @@
 #include <IForwardSys.h>
 #include <IHandleSys.h>
 #include <IRootConsoleMenu.h>
+#include <IPlayerHelpers.h>
 #include <compat_wrappers.h>
 #include "concmd_cleaner.h"
+#include "PlayerManager.h"
 
 #if SOURCE_ENGINE == SE_DARKMESSIAH
 class EQueryCvarValueStatus;
@@ -65,6 +67,11 @@ struct ConVarInfo
 	IChangeableForward *pChangeForward;	/**< Forward associated with convar */
 	ConVar *pVar;						/**< The actual convar */
 	List<IConVarChangeListener *> changeListeners;
+
+	static inline bool matches(const char *name, const ConVarInfo *info)
+	{
+		return strcmp(name, info->pVar->GetName()) == 0;
+	}
 };
 
 /**
@@ -75,6 +82,7 @@ struct ConVarQuery
 	QueryCvarCookie_t cookie;			/**< Cookie that identifies query */
 	IPluginFunction *pCallback;			/**< Function that will be called when query is finished */
 	cell_t value;						/**< Optional value passed to query function */
+	cell_t client;						/**< Only used for cleaning up on client disconnection */
 };
 
 class ConVarManager :
@@ -82,7 +90,8 @@ class ConVarManager :
 	public IHandleTypeDispatch,
 	public IPluginsListener,
 	public IRootConsoleCommand,
-	public IConCommandTracker
+	public IConCommandTracker,
+	public IClientListener
 {
 public:
 	ConVarManager();
@@ -101,6 +110,8 @@ public: //IRootConsoleCommand
 	void OnRootConsoleCommand(const char *cmdname, const CCommand &command);
 public: //IConCommandTracker
 	void OnUnlinkConCommandBase(ConCommandBase *pBase, const char *name, bool is_read_safe);
+public: //IClientListener
+	void OnClientDisconnected(int client);
 public:
 	/**
 	 * Create a convar and return a handle to it.

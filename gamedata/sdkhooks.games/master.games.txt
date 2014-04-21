@@ -21,6 +21,11 @@
 		"engine"	"left4dead"
 	}
 	
+	"engine.contagion.txt"
+	{
+		"engine"	"contagion"
+	}
+	
 	"game.l4d2.txt"
 	{
 		"game"		"left4dead2"
@@ -51,6 +56,16 @@
 		"engine"	"darkmessiah"
 	}
 	
+	"engine.blade.txt"
+	{
+		"engine"	"blade"
+	}
+	
+	"engine.insurgency.txt"
+	{
+		"engine"	"insurgency"
+	}
+	
 /*
 	Not Yet
 	
@@ -62,7 +77,7 @@
 	
 	"game.insurgency.txt"
 	{
-		"game"		"insurgency"
+		"game"		"$Insurgency"
 	}
 	
 	"game.pvkii.txt"
@@ -163,5 +178,10 @@
 	"game.synergy.txt"
 	{
 		"game"		"synergy"
+	}
+	
+	"game.hl2ctf.txt"
+	{
+		"game"		"hl2ctf"
 	}
 }

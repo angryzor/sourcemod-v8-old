@@ -99,7 +99,6 @@ new bool:g_ChangeMapAtRoundEnd;
 new bool:g_ChangeMapInProgress;
 new g_mapFileSerial = -1;
 
-new g_NominateCount = 0;
 new MapChange:g_ChangeTime;
 
 new Handle:g_NominationsResetForward = INVALID_HANDLE;
@@ -229,7 +228,6 @@ public OnConfigsExecuted()
 	
 	g_MapVoteCompleted = false;
 	
-	g_NominateCount = 0;
 	ClearArray(g_NominateList);
 	ClearArray(g_NominateOwners);
 	
@@ -287,7 +285,6 @@ public OnClientDisconnect(client)
 	
 	RemoveFromArray(g_NominateOwners, index);
 	RemoveFromArray(g_NominateList, index);
-	g_NominateCount--;
 }
 
 public Action:Command_SetNextmap(client, args)
@@ -790,7 +787,7 @@ public Handler_MapVoteFinished(Handle:menu,
 		new Float:winningvotes = float(item_info[0][VOTEINFO_ITEM_VOTES]);
 		new Float:required = num_votes * (GetConVarFloat(g_Cvar_RunOffPercent) / 100.0);
 		
-		if (winningvotes <= required)
+		if (winningvotes < required)
 		{
 			/* Insufficient Winning margin - Lets do a runoff */
 			g_VoteMenu = CreateMenu(Handler_MapVoteMenu, MenuAction:MENU_ACTIONS_ALL);
@@ -879,7 +876,8 @@ public Handler_MapVoteMenu(Handle:menu, MenuAction:action, param1, param2)
 					GetMenuItem(menu, item, map, sizeof(map));
 				}
 				
-				SetNextMap(map);			
+				SetNextMap(map);
+				g_MapVoteCompleted = true;
 			}
 			else
 			{
@@ -887,7 +885,6 @@ public Handler_MapVoteMenu(Handle:menu, MenuAction:action, param1, param2)
 			}
 			
 			g_HasVoteStarted = false;
-			g_MapVoteCompleted = true;
 		}
 	}
 	
@@ -980,6 +977,12 @@ NominateResult:InternalNominateMap(String:map[], bool:force, owner)
 		return Nominate_InvalidMap;
 	}
 	
+	/* Map already in the vote */
+	if (FindStringInArray(g_NominateList, map) != -1)
+	{
+		return Nominate_AlreadyInVote;	
+	}
+	
 	new index;
 
 	/* Look to replace an existing nomination by this client - Nominations made with owner = 0 aren't replaced */
@@ -997,21 +1000,13 @@ NominateResult:InternalNominateMap(String:map[], bool:force, owner)
 	}
 	
 	/* Too many nominated maps. */
-	if (g_NominateCount >= GetConVarInt(g_Cvar_IncludeMaps) && !force)
+	if (GetArraySize(g_NominateList) >= GetConVarInt(g_Cvar_IncludeMaps) && !force)
 	{
 		return Nominate_VoteFull;
 	}
 	
-	/* Map already in the vote */
-	if (FindStringInArray(g_NominateList, map) != -1)
-	{
-		return Nominate_AlreadyInVote;	
-	}
-	
-	
 	PushArrayString(g_NominateList, map);
 	PushArrayCell(g_NominateOwners, owner);
-	g_NominateCount++;
 	
 	while (GetArraySize(g_NominateList) > GetConVarInt(g_Cvar_IncludeMaps))
 	{
@@ -1064,7 +1059,6 @@ bool:InternalRemoveNominationByMap(String:map[])
 
 			RemoveFromArray(g_NominateList, i);
 			RemoveFromArray(g_NominateOwners, i);
-			g_NominateCount--;
 
 			return true;
 		}
@@ -1106,7 +1100,6 @@ bool:InternalRemoveNominationByOwner(owner)
 
 		RemoveFromArray(g_NominateList, index);
 		RemoveFromArray(g_NominateOwners, index);
-		g_NominateCount--;
 
 		return true;
 	}

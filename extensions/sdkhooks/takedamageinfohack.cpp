@@ -62,17 +62,24 @@ CTakeDamageInfoHack::CTakeDamageInfoHack( CBaseEntity *pInflictor, CBaseEntity *
 	m_vecReportedPosition = vec3_origin;
 	m_iAmmoType = -1;
 
-#if SOURCE_ENGINE == SE_ORANGEBOXVALVE || SOURCE_ENGINE == SE_CSS
+#if SOURCE_ENGINE < SE_ORANGEBOX
+	m_iCustomKillType = 0;
+#else
+	m_iDamageCustom = 0;
+#endif
+
+#if SOURCE_ENGINE == SE_CSS || SOURCE_ENGINE == SE_HL2DM || SOURCE_ENGINE == SE_DODS || SOURCE_ENGINE == SE_SDK2013 || SOURCE_ENGINE == SE_TF2
 	m_iDamagedOtherPlayers = 0;
-	m_iPlayerPenetrateCount = 0;
-	m_flUnknown = 0.0f;
+	m_iPlayerPenetrationCount = 0;
+	m_flDamageBonus = 0.0f;
+	m_bForceFriendlyFire = false;
 #endif
 
 #if SOURCE_ENGINE >= SE_ALIENSWARM
 	m_flRadius = 0.0f;
 #endif
 
-#if SOURCE_ENGINE == SE_CSGO
+#if SOURCE_ENGINE == SE_INSURGENCY || SOURCE_ENGINE == SE_CSGO
 	m_iDamagedOtherPlayers = 0;
 	m_iObjectsPenetrated = 0;
 	m_uiBulletID = 0;

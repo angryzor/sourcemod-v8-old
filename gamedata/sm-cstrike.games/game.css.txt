@@ -90,7 +90,7 @@
 			"TerminateRound"
 			{
 				"library"		"server"
-				"windows"		"\x55\x8B\xEC\x83\xEC\x24\x53\x8B\x5D\x0C\x56\x57\x33\xFF"
+				"windows"		"\x55\x8B\xEC\x83\xEC\x24\x53\x8B\x5D\x0C\x56\x57\x33\xFF\x8B"
 				"linux"			"@_ZN12CCSGameRules14TerminateRoundEfi"
 				"mac"			"@_ZN12CCSGameRules14TerminateRoundEfi"
 			}
@@ -137,6 +137,13 @@
 				"windows"	"\xA1\x2A\x2A\x2A\x2A\x8B\x40\x30\x56\x8B\xF1\x85\xC0\x74"
 				"linux"		"@_ZN12CCSGameRules13CheckWinLimitEv"
 				"mac"		"@_ZN12CCSGameRules5ThinkEv"
+			}
+			"SetModelFromClass"
+			{
+				"library"	"server"
+				"windows"	"\x55\x8B\xEC\x83\xEC\x2C\x89\x4D\xD4\x8B\x4D\xD4\xE8\x2A\x2A\x2A\x2A\x83\xF8\x02\x0F\x85\x2A\x2A\x2A\x2A\x8B"
+				"linux"		"@_ZN9CCSPlayer17SetModelFromClassEv"
+				"mac"		"@_ZN9CCSPlayer17SetModelFromClassEv"
 			}
 		}
 	}

@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet:
  * =============================================================================
  * SourceMod Client Preferences Extension
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -55,49 +55,22 @@ void CookieManager::Unload()
 	for (int i = playerhelpers->GetMaxClients()+1; --i > 0;)
 	{
 		if (connected[i])
-		{
 			OnClientDisconnecting(i);
-		}
 	}
 
 	/* Find all cookies and delete them */
-	Cookie *current;
-
 	for (SourceHook::List<Cookie *>::iterator _iter = cookieList.begin(); _iter != cookieList.end(); _iter++)
-	{
-		current = (Cookie *)*_iter;
-
-		if (current == NULL)
-		{
-			continue;
-		}
-
-		g_ClientPrefs.cookieMutex->Lock();
-		if (current->usedInQuery)
-		{
-			current->shouldDelete = true;
-			g_ClientPrefs.cookieMutex->Unlock();
-		}
-		else
-		{
-			g_ClientPrefs.cookieMutex->Unlock();
-			delete current;
-		}
-	}
+		delete (*_iter);
 	
 	cookieList.clear();
 }
 
 Cookie *CookieManager::FindCookie(const char *name)
 {
-	Cookie **pCookie = cookieTrie.retrieve(name);
-
-	if (pCookie == NULL)
-	{
+	Cookie *cookie;
+	if (!cookieFinder.retrieve(name, &cookie))
 		return NULL;
-	}
-
-	return *pCookie;
+	return cookie;
 }
 
 Cookie *CookieManager::CreateCookie(const char *name, const char *description, CookieAccess access)
@@ -116,13 +89,12 @@ Cookie *CookieManager::CreateCookie(const char *name, const char *description, C
 
 	/* First time cookie - Create from scratch */
 	pCookie = new Cookie(name, description, access);
-	pCookie->usedInQuery++;
 	
 	/* Attempt to insert cookie into the db and get its ID num */
 	TQueryOp *op = new TQueryOp(Query_InsertCookie, pCookie);
 	op->m_params.cookie = pCookie;
 	
-	cookieTrie.insert(name, pCookie);
+	cookieFinder.insert(name, pCookie);
 	cookieList.push_back(pCookie);
 
 	g_ClientPrefs.AddQueryToQueue(op);

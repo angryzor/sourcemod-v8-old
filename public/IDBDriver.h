@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -42,7 +42,7 @@
  */
 
 #define SMINTERFACE_DBI_NAME		"IDBI"
-#define SMINTERFACE_DBI_VERSION		8
+#define SMINTERFACE_DBI_VERSION		9
 
 namespace SourceMod
 {
@@ -600,6 +600,29 @@ namespace SourceMod
 		 *						if applicable.
 		 */
 		virtual unsigned int GetInsertIDForQuery(IQuery *query) =0;
+
+		/**
+		 * @brief Sets the character set of the current connection
+		 *
+		 * @param characterset  The characterset to switch to. e.g. "utf8".
+		 */
+		virtual bool SetCharacterSet(const char *characterset) =0;
+
+#if !defined(SOURCEMOD_SQL_DRIVER_CODE)
+		/**
+		 * @brief Wrapper around IncReferenceCount(), for ke::Ref.
+		 */
+		void AddRef() {
+			IncReferenceCount();
+		}
+
+		/**
+		 * @brief Wrapper around Close(), for ke::Ref.
+		 */
+		void Release() {
+			Close();
+		}
+#endif
 	};
 
 	/** 

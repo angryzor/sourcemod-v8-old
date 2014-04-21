@@ -30,7 +30,6 @@
  */
 
 #include "EventManager.h"
-#include "ForwardSys.h"
 #include "sm_stringutil.h"
 #include "logic_bridge.h"
 
@@ -57,14 +56,10 @@ public:
 
 EventManager::EventManager() : m_EventType(0)
 {
-	/* Create an event lookup trie */
-	m_EventHooks = sm_trie_create();
 }
 
 EventManager::~EventManager()
 {
-	sm_trie_destroy(m_EventHooks);
-
 	/* Free memory used by EventInfo structs if any */
 	CStack<EventInfo *>::iterator iter;
 	for (iter = m_FreeEvents.begin(); iter != m_FreeEvents.end(); iter++)
@@ -137,12 +132,12 @@ void EventManager::OnPluginUnloaded(IPlugin *plugin)
 			{
 				if (pHook->pPreHook)
 				{
-					g_Forwards.ReleaseForward(pHook->pPreHook);
+					forwardsys->ReleaseForward(pHook->pPreHook);
 				}
 
 				if (pHook->pPostHook)
 				{
-					g_Forwards.ReleaseForward(pHook->pPostHook);
+					forwardsys->ReleaseForward(pHook->pPostHook);
 				}
 
 				delete pHook;
@@ -183,7 +178,7 @@ EventHookError EventManager::HookEvent(const char *name, IPluginFunction *pFunct
 	}
 
 	/* If a hook structure does not exist... */
-	if (!sm_trie_retrieve(m_EventHooks, name, (void **)&pHook))
+	if (!m_EventHooks.retrieve(name, &pHook))
 	{
 		EventHookList *pHookList;
 		IPlugin *plugin = scripts->FindPluginByContext(pFunction->GetParentContext()->GetContext());
@@ -201,12 +196,12 @@ EventHookError EventManager::HookEvent(const char *name, IPluginFunction *pFunct
 		if (mode == EventHookMode_Pre)
 		{
 			/* Create forward for a pre hook */
-			pHook->pPreHook = g_Forwards.CreateForwardEx(NULL, ET_Hook, 3, GAMEEVENT_PARAMS);
+			pHook->pPreHook = forwardsys->CreateForwardEx(NULL, ET_Hook, 3, GAMEEVENT_PARAMS);
 			/* Add to forward list */
 			pHook->pPreHook->AddFunction(pFunction);
 		} else {
 			/* Create forward for a post hook */
-			pHook->pPostHook = g_Forwards.CreateForwardEx(NULL, ET_Ignore, 3, GAMEEVENT_PARAMS);
+			pHook->pPostHook = forwardsys->CreateForwardEx(NULL, ET_Ignore, 3, GAMEEVENT_PARAMS);
 			/* Should we copy data from a pre hook to the post hook? */
 			pHook->postCopy = (mode == EventHookMode_Post);
 			/* Add to forward list */
@@ -221,7 +216,7 @@ EventHookError EventManager::HookEvent(const char *name, IPluginFunction *pFunct
 
 		/* Add hook structure to hook lists */
 		pHookList->push_back(pHook);
-		sm_trie_insert(m_EventHooks, name, pHook);
+		m_EventHooks.insert(name, pHook);
 
 		return EventHookErr_Okay;
 	}
@@ -233,7 +228,7 @@ EventHookError EventManager::HookEvent(const char *name, IPluginFunction *pFunct
 		/* Create pre hook forward if necessary */
 		if (!pHook->pPreHook)
 		{
-			pHook->pPreHook = g_Forwards.CreateForwardEx(NULL, ET_Event, 3, GAMEEVENT_PARAMS);
+			pHook->pPreHook = forwardsys->CreateForwardEx(NULL, ET_Event, 3, GAMEEVENT_PARAMS);
 		}
 
 		/* Add plugin function to forward list */
@@ -242,7 +237,7 @@ EventHookError EventManager::HookEvent(const char *name, IPluginFunction *pFunct
 		/* Create post hook forward if necessary */
 		if (!pHook->pPostHook)
 		{
-			pHook->pPostHook = g_Forwards.CreateForwardEx(NULL, ET_Ignore, 3, GAMEEVENT_PARAMS);
+			pHook->pPostHook = forwardsys->CreateForwardEx(NULL, ET_Ignore, 3, GAMEEVENT_PARAMS);
 		}
 
 		/* If postCopy is false, then we may want to set it to true */
@@ -267,7 +262,7 @@ EventHookError EventManager::UnhookEvent(const char *name, IPluginFunction *pFun
 	IChangeableForward **pEventForward;
 
 	/* If hook does not exist at all */
-	if (!sm_trie_retrieve(m_EventHooks, name, (void **)&pHook))
+	if (!m_EventHooks.retrieve(name, &pHook))
 	{
 		return EventHookErr_NotActive;
 	}
@@ -289,7 +284,7 @@ EventHookError EventManager::UnhookEvent(const char *name, IPluginFunction *pFun
 	/* If forward's list contains 0 functions now, free it */
 	if ((*pEventForward)->GetFunctionCount() == 0)
 	{
-		g_Forwards.ReleaseForward(*pEventForward);
+		forwardsys->ReleaseForward(*pEventForward);
 		*pEventForward = NULL;
 	}
 
@@ -317,7 +312,7 @@ EventHookError EventManager::UnhookEvent(const char *name, IPluginFunction *pFun
 		pHookList->remove(pHook);
 
 		/* Delete entry in trie */
-		sm_trie_delete(m_EventHooks, name);
+		m_EventHooks.remove(name);
 
 		/* Free the cached name */
 		delete pHook->name;
@@ -396,7 +391,7 @@ bool EventManager::OnFireEvent(IGameEvent *pEvent, bool bDontBroadcast)
 
 	name = pEvent->GetName();
 	
-	if (sm_trie_retrieve(m_EventHooks, name, reinterpret_cast<void **>(&pHook)))
+	if (m_EventHooks.retrieve(name, &pHook))
 	{
 		/* Push the event onto the event stack.  The reference count is increased to make sure 
 		 * the structure is not garbage collected in between now and the post hook.
@@ -503,7 +498,7 @@ bool EventManager::OnFireEvent_Post(IGameEvent *pEvent, bool bDontBroadcast)
 		{
 			assert(pHook->pPostHook == NULL);
 			assert(pHook->pPreHook == NULL);
-			sm_trie_delete(m_EventHooks, pHook->name);
+			m_EventHooks.remove(pHook->name);
 			delete pHook->name;
 			delete pHook;
 		}

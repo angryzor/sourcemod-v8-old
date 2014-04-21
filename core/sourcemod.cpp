@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 sw=4 :
+ * vim: set ts=4 sw=4 tw=99 noet:
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2010 AlliedModders LLC.  All rights reserved.
@@ -39,7 +39,6 @@
 #include "AdminCache.h"
 #include "sm_stringutil.h"
 #include "PlayerManager.h"
-#include "ForwardSys.h"
 #include "TimerSys.h"
 #include <IGameConfigs.h>
 #include "frame_hooks.h"
@@ -63,6 +62,7 @@ IForward *g_pOnMapEnd = NULL;
 IGameConfig *g_pGameConf = NULL;
 bool g_Loaded = false;
 bool sm_show_debug_spew = false;
+bool sm_disable_jit = false;
 
 typedef ISourcePawnEngine *(*GET_SP_V1)();
 typedef ISourcePawnEngine2 *(*GET_SP_V2)();
@@ -127,9 +127,19 @@ ConfigResult SourceModBase::OnSourceModConfigChanged(const char *key,
 
 		return ConfigResult_Accept;
 	}
+	else if (strcasecmp(key, "DisableJIT") == 0)
+	{
+		sm_disable_jit = (strcasecmp(value, "yes") == 0) ? true : false;
+		if (g_pSourcePawn2)
+			g_pSourcePawn2->SetJitEnabled(!sm_disable_jit);
+
+		return ConfigResult_Accept;
+	}
 
 	return ConfigResult_Ignore;
 }
+
+static bool sSourceModInitialized = false;
 
 bool SourceModBase::InitializeSourceMod(char *error, size_t maxlength, bool late)
 {
@@ -284,6 +294,11 @@ bool SourceModBase::InitializeSourceMod(char *error, size_t maxlength, bool late
 
 	g_pSourcePawn2->SetDebugListener(logicore.debugger);
 
+	if (sm_disable_jit)
+		g_pSourcePawn2->SetJitEnabled(!sm_disable_jit);
+
+	sSourceModInitialized = true;
+
 	/* Hook this now so we can detect startup without calling StartSourceMod() */
 	SH_ADD_HOOK(IServerGameDLL, LevelInit, gamedll, SH_MEMBER(this, &SourceModBase::LevelInit), false);
 
@@ -355,6 +370,16 @@ void SourceModBase::StartSourceMod(bool late)
 	{
 		extsys->LoadAutoExtension("updater.ext." PLATFORM_LIB_EXT);
 	}
+
+	const char *timeout = GetCoreConfigValue("SlowScriptTimeout");
+	if (timeout == NULL)
+	{
+		timeout = "8";
+	}
+	if (atoi(timeout) != 0)
+	{
+		g_pSourcePawn2->InstallWatchdogTimer(atoi(timeout) * 1000);
+	}
 }
 
 static bool g_LevelEndBarrier = false;
@@ -392,7 +417,7 @@ bool SourceModBase::LevelInit(char const *pMapName, char const *pMapEntities, ch
 
 	if (!g_pOnMapEnd)
 	{
-		g_pOnMapEnd = g_Forwards.CreateForward("OnMapEnd", ET_Ignore, 0, NULL);
+		g_pOnMapEnd = forwardsys->CreateForward("OnMapEnd", ET_Ignore, 0, NULL);
 	}
 
 	g_LevelEndBarrier = true;
@@ -509,69 +534,74 @@ size_t SourceModBase::BuildPath(PathType type, char *buffer, size_t maxlength, c
 
 void SourceModBase::CloseSourceMod()
 {
-	/* Force a level end */
-	LevelShutdown();
+	if (!sSourceModInitialized)
+		return;
 
+	SH_REMOVE_HOOK(IServerGameDLL, LevelInit, gamedll, SH_MEMBER(this, &SourceModBase::LevelInit), false);
+
+	if (g_Loaded)
+	{
+		/* Force a level end */
+		LevelShutdown();
+		ShutdownServices();
+	}
+
+	/* Rest In Peace */
+	ShutdownLogicBridge();
+	ShutdownJIT();
+}
+
+void SourceModBase::ShutdownServices()
+{
 	/* Unload plugins */
 	scripts->Shutdown();
 
 	/* Unload extensions */
 	extsys->Shutdown();
 
-	SH_REMOVE_HOOK(IServerGameDLL, LevelInit, gamedll, SH_MEMBER(this, &SourceModBase::LevelInit), false);
+	if (g_pOnMapEnd)
+		forwardsys->ReleaseForward(g_pOnMapEnd);
 
-	if (g_Loaded)
+	/* Notify! */
+	SMGlobalClass *pBase = SMGlobalClass::head;
+	while (pBase)
 	{
-		if (g_pOnMapEnd)
-		{
-			g_Forwards.ReleaseForward(g_pOnMapEnd);
-		}
-	
-		/* Notify! */
-		SMGlobalClass *pBase = SMGlobalClass::head;
-		while (pBase)
-		{
-			pBase->OnSourceModShutdown();
-			pBase = pBase->m_pGlobalClassNext;
-		}
-	
-		/* Delete all data packs */
-		CStack<CDataPack *>::iterator iter;
-		CDataPack *pd;
-		for (iter=m_freepacks.begin(); iter!=m_freepacks.end(); iter++)
-		{
-			pd = (*iter);
-			delete pd;
-		}
-		m_freepacks.popall();
-	
-		/* Notify! */
-		pBase = SMGlobalClass::head;
-		while (pBase)
-		{
-			pBase->OnSourceModAllShutdown();
-			pBase = pBase->m_pGlobalClassNext;
-		}
-	
-		if (enginePatch)
-		{
-			SH_RELEASE_CALLCLASS(enginePatch);
-			enginePatch = NULL;
-		}
-	
-		if (gamedllPatch)
-		{
-			SH_RELEASE_CALLCLASS(gamedllPatch);
-			gamedllPatch = NULL;
-		}
-
-		SH_REMOVE_HOOK(IServerGameDLL, LevelShutdown, gamedll, SH_MEMBER(this, &SourceModBase::LevelShutdown), false);
-		SH_REMOVE_HOOK(IServerGameDLL, GameFrame, gamedll, SH_MEMBER(&g_Timers, &TimerSystem::GameFrame), false);
+		pBase->OnSourceModShutdown();
+		pBase = pBase->m_pGlobalClassNext;
 	}
 
-	/* Rest In Peace */
-	ShutdownLogicBridge();
-	ShutdownJIT();
+	/* Delete all data packs */
+	CStack<CDataPack *>::iterator iter;
+	CDataPack *pd;
+	for (iter=m_freepacks.begin(); iter!=m_freepacks.end(); iter++)
+	{
+		pd = (*iter);
+		delete pd;
+	}
+	m_freepacks.popall();
+
+	/* Notify! */
+	pBase = SMGlobalClass::head;
+	while (pBase)
+	{
+		pBase->OnSourceModAllShutdown();
+		pBase = pBase->m_pGlobalClassNext;
+	}
+
+	if (enginePatch)
+	{
+		SH_RELEASE_CALLCLASS(enginePatch);
+		enginePatch = NULL;
+	}
+
+	if (gamedllPatch)
+	{
+		SH_RELEASE_CALLCLASS(gamedllPatch);
+		gamedllPatch = NULL;
+	}
+
+	SH_REMOVE_HOOK(IServerGameDLL, LevelShutdown, gamedll, SH_MEMBER(this, &SourceModBase::LevelShutdown), false);
+	SH_REMOVE_HOOK(IServerGameDLL, GameFrame, gamedll, SH_MEMBER(&g_Timers, &TimerSystem::GameFrame), false);
 }
 
 void SourceModBase::LogMessage(IExtension *pExt, const char *format, ...)

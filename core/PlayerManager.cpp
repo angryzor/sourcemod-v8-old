@@ -30,7 +30,6 @@
  */
 
 #include "PlayerManager.h"
-#include "ForwardSys.h"
 #include "AdminCache.h"
 #include "ConCmdManager.h"
 #include "MenuStyle_Valve.h"
@@ -44,9 +43,9 @@
 #include <inetchannel.h>
 #include <iclient.h>
 #include <IGameConfigs.h>
-#include <sourcemod_version.h>
 #include "ConsoleDetours.h"
 #include "logic_bridge.h"
+#include <sourcemod_version.h>
 
 PlayerManager g_Players;
 bool g_OnMapStarted = false;
@@ -61,7 +60,7 @@ List<ICommandTargetProcessor *> target_processors;
 #if SOURCE_ENGINE == SE_DOTA
 SH_DECL_HOOK5(IServerGameClients, ClientConnect, SH_NOATTRIB, 0, bool, CEntityIndex, const char *, const char *, char *, int);
 SH_DECL_HOOK2_void(IServerGameClients, ClientPutInServer, SH_NOATTRIB, 0, CEntityIndex, const char *);
-SH_DECL_HOOK1_void(IServerGameClients, ClientDisconnect, SH_NOATTRIB, 0, CEntityIndex);
+SH_DECL_HOOK2_void(IServerGameClients, ClientDisconnect, SH_NOATTRIB, 0, CEntityIndex, int);
 SH_DECL_HOOK2_void(IServerGameClients, ClientCommand, SH_NOATTRIB, 0, CEntityIndex, const CCommand &);
 SH_DECL_HOOK1_void(IServerGameClients, ClientSettingsChanged, SH_NOATTRIB, 0, CEntityIndex);
 #else
@@ -159,20 +158,20 @@ void PlayerManager::OnSourceModAllInitialized()
 	ParamType p1[] = {Param_Cell, Param_String, Param_Cell};
 	ParamType p2[] = {Param_Cell};
 
-	m_clconnect = g_Forwards.CreateForward("OnClientConnect", ET_LowEvent, 3, p1);
-	m_clconnect_post = g_Forwards.CreateForward("OnClientConnected", ET_Ignore, 1, p2);
-	m_clputinserver = g_Forwards.CreateForward("OnClientPutInServer", ET_Ignore, 1, p2);
-	m_cldisconnect = g_Forwards.CreateForward("OnClientDisconnect", ET_Ignore, 1, p2);
-	m_cldisconnect_post = g_Forwards.CreateForward("OnClientDisconnect_Post", ET_Ignore, 1, p2);
-	m_clcommand = g_Forwards.CreateForward("OnClientCommand", ET_Hook, 2, NULL, Param_Cell, Param_Cell);
-	m_clinfochanged = g_Forwards.CreateForward("OnClientSettingsChanged", ET_Ignore, 1, p2);
-	m_clauth = g_Forwards.CreateForward("OnClientAuthorized", ET_Ignore, 2, NULL, Param_Cell, Param_String);
-	m_onActivate = g_Forwards.CreateForward("OnServerLoad", ET_Ignore, 0, NULL);
-	m_onActivate2 = g_Forwards.CreateForward("OnMapStart", ET_Ignore, 0, NULL);
+	m_clconnect = forwardsys->CreateForward("OnClientConnect", ET_LowEvent, 3, p1);
+	m_clconnect_post = forwardsys->CreateForward("OnClientConnected", ET_Ignore, 1, p2);
+	m_clputinserver = forwardsys->CreateForward("OnClientPutInServer", ET_Ignore, 1, p2);
+	m_cldisconnect = forwardsys->CreateForward("OnClientDisconnect", ET_Ignore, 1, p2);
+	m_cldisconnect_post = forwardsys->CreateForward("OnClientDisconnect_Post", ET_Ignore, 1, p2);
+	m_clcommand = forwardsys->CreateForward("OnClientCommand", ET_Hook, 2, NULL, Param_Cell, Param_Cell);
+	m_clinfochanged = forwardsys->CreateForward("OnClientSettingsChanged", ET_Ignore, 1, p2);
+	m_clauth = forwardsys->CreateForward("OnClientAuthorized", ET_Ignore, 2, NULL, Param_Cell, Param_String);
+	m_onActivate = forwardsys->CreateForward("OnServerLoad", ET_Ignore, 0, NULL);
+	m_onActivate2 = forwardsys->CreateForward("OnMapStart", ET_Ignore, 0, NULL);
 
-	PreAdminCheck = g_Forwards.CreateForward("OnClientPreAdminCheck", ET_Event, 1, p1);
-	PostAdminCheck = g_Forwards.CreateForward("OnClientPostAdminCheck", ET_Ignore, 1, p1);
-	PostAdminFilter = g_Forwards.CreateForward("OnClientPostAdminFilter", ET_Ignore, 1, p1);
+	PreAdminCheck = forwardsys->CreateForward("OnClientPreAdminCheck", ET_Event, 1, p1);
+	PostAdminCheck = forwardsys->CreateForward("OnClientPostAdminCheck", ET_Ignore, 1, p1);
+	PostAdminFilter = forwardsys->CreateForward("OnClientPostAdminFilter", ET_Ignore, 1, p1);
 
 	m_bIsListenServer = !engine->IsDedicatedServer();
 	m_ListenClient = 0;
@@ -197,20 +196,20 @@ void PlayerManager::OnSourceModShutdown()
 	SH_REMOVE_HOOK(IServerGameDLL, ServerActivate, gamedll, SH_MEMBER(this, &PlayerManager::OnServerActivate), true);
 
 	/* Release forwards */
-	g_Forwards.ReleaseForward(m_clconnect);
-	g_Forwards.ReleaseForward(m_clconnect_post);
-	g_Forwards.ReleaseForward(m_clputinserver);
-	g_Forwards.ReleaseForward(m_cldisconnect);
-	g_Forwards.ReleaseForward(m_cldisconnect_post);
-	g_Forwards.ReleaseForward(m_clcommand);
-	g_Forwards.ReleaseForward(m_clinfochanged);
-	g_Forwards.ReleaseForward(m_clauth);
-	g_Forwards.ReleaseForward(m_onActivate);
-	g_Forwards.ReleaseForward(m_onActivate2);
+	forwardsys->ReleaseForward(m_clconnect);
+	forwardsys->ReleaseForward(m_clconnect_post);
+	forwardsys->ReleaseForward(m_clputinserver);
+	forwardsys->ReleaseForward(m_cldisconnect);
+	forwardsys->ReleaseForward(m_cldisconnect_post);
+	forwardsys->ReleaseForward(m_clcommand);
+	forwardsys->ReleaseForward(m_clinfochanged);
+	forwardsys->ReleaseForward(m_clauth);
+	forwardsys->ReleaseForward(m_onActivate);
+	forwardsys->ReleaseForward(m_onActivate2);
 
-	g_Forwards.ReleaseForward(PreAdminCheck);
-	g_Forwards.ReleaseForward(PostAdminCheck);
-	g_Forwards.ReleaseForward(PostAdminFilter);
+	forwardsys->ReleaseForward(PreAdminCheck);
+	forwardsys->ReleaseForward(PostAdminCheck);
+	forwardsys->ReleaseForward(PostAdminFilter);
 
 	delete [] m_Players;
 
@@ -266,7 +265,7 @@ void PlayerManager::OnServerActivate(edict_t *pEdictList, int edictCount, int cl
 #endif
 {
 	static ConVar *tv_enable = icvar->FindVar("tv_enable");
-#if SOURCE_ENGINE == SE_ORANGEBOXVALVE
+#if SOURCE_ENGINE == SE_TF2
 	static ConVar *replay_enable = icvar->FindVar("replay_enable");
 #endif
 
@@ -276,7 +275,7 @@ void PlayerManager::OnServerActivate(edict_t *pEdictList, int edictCount, int cl
 	ICommandLine *commandLine = g_HL2.GetValveCommandLine();
 	m_bIsSourceTVActive = (tv_enable && tv_enable->GetBool() && (!commandLine || commandLine->FindParm("-nohltv") == 0));
 	m_bIsReplayActive = false;
-#if SOURCE_ENGINE == SE_ORANGEBOXVALVE
+#if SOURCE_ENGINE == SE_TF2
 	m_bIsReplayActive = (replay_enable && replay_enable->GetBool());
 #endif
 	m_PlayersSinceActive = 0;
@@ -634,17 +633,14 @@ void PlayerManager::OnClientPutInServer(edict_t *pEntity, const char *playername
 		int newCount = m_PlayersSinceActive + 1;
 
 		int userId = GetPlayerUserId(pEntity);
-#if (SOURCE_ENGINE == SE_ORANGEBOXVALVE || SOURCE_ENGINE == SE_CSS || SOURCE_ENGINE == SE_LEFT4DEAD2)
+#if (SOURCE_ENGINE == SE_CSS || SOURCE_ENGINE == SE_HL2DM || SOURCE_ENGINE == SE_DODS || SOURCE_ENGINE == SE_TF2 || SOURCE_ENGINE == SE_NUCLEARDAWN || SOURCE_ENGINE == SE_LEFT4DEAD2)
 		static ConVar *tv_name = icvar->FindVar("tv_name");
 #endif
-#if SOURCE_ENGINE == SE_ORANGEBOXVALVE
+#if SOURCE_ENGINE == SE_TF2
 		static ConVar *replay_name = icvar->FindVar("replay_name");
 #endif
-#if SOURCE_ENGINE == SE_LEFT4DEAD2
-		static bool bIsNuclearDawn = (strcmp(g_SourceMod.GetGameFolderName(), "nucleardawn") == 0);
-#endif
 
-#if SOURCE_ENGINE == SE_ORANGEBOXVALVE
+#if SOURCE_ENGINE == SE_TF2
 		if (m_bIsReplayActive && newCount == 1
 			&& (m_ReplayUserId == userId
 				|| (replay_name && strcmp(playername, replay_name->GetString()) == 0) || (replay_name && replay_name->GetString()[0] == 0 && strcmp(playername, "unnamed") == 0)
@@ -662,15 +658,8 @@ void PlayerManager::OnClientPutInServer(edict_t *pEntity, const char *playername
 			&& (m_SourceTVUserId == userId
 #if SOURCE_ENGINE == SE_CSGO
 				|| strcmp(playername, "GOTV") == 0
-#elif (SOURCE_ENGINE == SE_ORANGEBOXVALVE || SOURCE_ENGINE == SE_CSS || SOURCE_ENGINE == SE_LEFT4DEAD2)
-#if SOURCE_ENGINE == SE_LEFT4DEAD2
-				|| (bIsNuclearDawn && ( true
-#endif // SE_LEFT4DEAD2
+#elif (SOURCE_ENGINE == SE_CSS || SOURCE_ENGINE == SE_HL2DM || SOURCE_ENGINE == SE_DODS || SOURCE_ENGINE == SE_TF2 || SOURCE_ENGINE == SE_NUCLEARDAWN)
 				|| (tv_name && strcmp(playername, tv_name->GetString()) == 0) || (tv_name && tv_name->GetString()[0] == 0 && strcmp(playername, "unnamed") == 0)
-#if SOURCE_ENGINE == SE_LEFT4DEAD2
-					))
-				|| (!bIsNuclearDawn && strcmp(playername, "SourceTV") == 0)
-#endif // SE_LEFT4DEAD2
 #else
 				|| strcmp(playername, "SourceTV") == 0
 #endif
@@ -756,7 +745,7 @@ void PlayerManager::OnSourceModLevelEnd()
 		if (m_Players[i].IsConnected())
 		{
 #if SOURCE_ENGINE == SE_DOTA
-			OnClientDisconnect(m_Players[i].GetIndex());
+			OnClientDisconnect(m_Players[i].GetIndex(), 0);
 #else
 			OnClientDisconnect(m_Players[i].GetEdict());
 #endif
@@ -766,7 +755,7 @@ void PlayerManager::OnSourceModLevelEnd()
 }
 
 #if SOURCE_ENGINE == SE_DOTA
-void PlayerManager::OnClientDisconnect(CEntityIndex index)
+void PlayerManager::OnClientDisconnect(CEntityIndex index, int reason)
 {
 	int client = index.Get();
 	edict_t *pEntity = PEntityOfEntIndex(client);
@@ -812,7 +801,7 @@ void PlayerManager::OnClientDisconnect(edict_t *pEntity)
 }
 
 #if SOURCE_ENGINE == SE_DOTA
-void PlayerManager::OnClientDisconnect_Post(CEntityIndex index)
+void PlayerManager::OnClientDisconnect_Post(CEntityIndex index, int reason)
 {
 	int client = index.Get();
 	edict_t *pEntity = PEntityOfEntIndex(client);
@@ -854,11 +843,13 @@ void ClientConsolePrint(edict_t *e, const char *fmt, ...)
 		buffer[len] = '\0';
 	}
 
-#if SOURCE_ENGINE == SE_DOTA
-	engine->ClientPrintf(CEntityIndex(IndexOfEdict(e)), buffer);
-#else
-	engine->ClientPrintf(e, buffer);
-#endif
+	CPlayer *pPlayer = g_Players.GetPlayerByIndex(IndexOfEdict(e));
+	if (!pPlayer)
+	{
+		return;
+	}
+	
+	pPlayer->PrintToConsole(buffer);
 }
 
 void ListExtensionsToClient(CPlayer *player, const CCommand &args)
@@ -1076,7 +1067,7 @@ void PlayerManager::OnClientCommand(edict_t *pEntity)
 		}
 
 		ClientConsolePrint(pEntity,
-			"SourceMod %s, by AlliedModders LLC", SM_VERSION_STRING);
+			"SourceMod %s, by AlliedModders LLC", SOURCEMOD_VERSION);
 		ClientConsolePrint(pEntity,
 			"To see running plugins, type \"sm plugins\"");
 		ClientConsolePrint(pEntity,
@@ -2029,7 +2020,7 @@ bool CPlayer::IsAuthorized()
 bool CPlayer::IsAuthStringValidated()
 {     
 #if SOURCE_ENGINE >= SE_ORANGEBOX
-	if (g_Players.m_bAuthstringValidation && !g_HL2.IsLANServer())
+	if (!IsFakeClient() && g_Players.m_bAuthstringValidation && !g_HL2.IsLANServer())
 	{
 #if SOURCE_ENGINE == SE_DOTA
 		return engine->IsClientFullyAuthenticated(m_iIndex);
@@ -2117,6 +2108,11 @@ void CPlayer::Kick(const char *str)
 	{
 		IClient *pClient = static_cast<IClient *>(pNetChan->GetMsgHandler());
 #if SOURCE_ENGINE == SE_DOTA
+		// Including network_connection.pb.h (and .cpp) is overkill for just this.  -p
+		// Copied from ENetworkDisconnectionReason enum
+		const int NETWORK_DISCONNECT_KICKED = 39;
+		pClient->Disconnect(NETWORK_DISCONNECT_KICKED);
+#elif SOURCE_ENGINE == SE_CSGO
 		pClient->Disconnect(str);
 #else
 		pClient->Disconnect("%s", str);
@@ -2333,4 +2329,24 @@ int CPlayer::GetLifeState()
 unsigned int CPlayer::GetSerial()
 {
 	return m_Serial.value;
+}
+
+void CPlayer::PrintToConsole(const char *pMsg)
+{
+	if (m_IsConnected == false || m_bFakeClient == true)
+	{
+		return;
+	}
+
+	INetChannel *pNetChan = static_cast<INetChannel *>(engine->GetPlayerNetInfo(m_iIndex));
+	if (pNetChan == NULL)
+	{
+		return;
+	}
+
+#if SOURCE_ENGINE == SE_DOTA
+	engine->ClientPrintf(m_iIndex, pMsg);
+#else
+	engine->ClientPrintf(m_pEdict, pMsg);
+#endif
 }

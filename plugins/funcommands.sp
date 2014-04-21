@@ -51,11 +51,11 @@ public Plugin:myinfo =
 new Handle:hTopMenu = INVALID_HANDLE;
 
 // Sounds
-#define SOUND_BLIP		"buttons/blip1.wav"
-#define SOUND_BEEP		"buttons/button17.wav"
-#define SOUND_FINAL		"weapons/cguard/charging.wav"
-#define SOUND_BOOM		"weapons/explode3.wav"
-#define SOUND_FREEZE	"physics/glass/glass_impact_bullet4.wav"
+new String:g_BlipSound[PLATFORM_MAX_PATH];
+new String:g_BeepSound[PLATFORM_MAX_PATH];
+new String:g_FinalSound[PLATFORM_MAX_PATH];
+new String:g_BoomSound[PLATFORM_MAX_PATH];
+new String:g_FreezeSound[PLATFORM_MAX_PATH];
 
 // Following are model indexes for temp entities
 new g_BeamSprite        = -1;
@@ -78,7 +78,7 @@ new UserMsg:g_FadeUserMsgId;
 // Serial Generator for Timer Safety
 new g_Serial_Gen = 0;
 
-new g_GameEngine = SOURCE_SDK_UNKNOWN;
+new EngineVersion:g_GameEngine = Engine_Unknown;
 
 // Flags used in various timers
 #define DEFAULT_TIMER_FLAGS TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE
@@ -102,7 +102,7 @@ public OnPluginStart()
 	
 	LoadTranslations("common.phrases");
 	LoadTranslations("funcommands.phrases");
-	g_GameEngine = GuessSDKVersion();
+	g_GameEngine = GetEngineVersion();
 	g_FadeUserMsgId = GetUserMessageId("Fade");
 
 	RegisterCvars( );
@@ -179,44 +179,65 @@ HookEvents( )
 
 public OnMapStart()
 {
-	PrecacheSound(SOUND_BLIP, true);
-	PrecacheSound(SOUND_BEEP, true);
-	PrecacheSound(SOUND_FINAL, true);
-	PrecacheSound(SOUND_BOOM, true);
-	PrecacheSound(SOUND_FREEZE, true);
-
-	new sdkversion = GuessSDKVersion();
-	if (sdkversion >= SOURCE_SDK_LEFT4DEAD)
+	new Handle:gameConfig = LoadGameConfigFile("funcommands.games");
+	if (gameConfig == INVALID_HANDLE)
 	{
-		g_BeamSprite = PrecacheModel("materials/sprites/laserbeam.vmt");
-		g_HaloSprite = PrecacheModel("materials/sprites/glow01.vmt");
-		
-		// l4d, l4d2, and csgo have this. swarm does not.
-		if (sdkversion != SOURCE_SDK_ALIENSWARM)
-		{
-			g_BeamSprite2 = PrecacheModel("materials/sprites/physbeam.vmt");
-		}
-		
-		g_GlowSprite = PrecacheModel("materials/sprites/blueflare1.vmt");
-		
-		if (sdkversion == SOURCE_SDK_LEFT4DEAD || sdkversion == SOURCE_SDK_LEFT4DEAD2)
-		{
-			g_ExplosionSprite = PrecacheModel("sprites/floorfire4_.vmt");
-		}
-		else if (sdkversion == SOURCE_SDK_ALIENSWARM)
-		{
-			g_ExplosionSprite = PrecacheModel("sprites/flamelet1.vmt");
-		}
-	}
-	else
-	{
-		g_BeamSprite = PrecacheModel("materials/sprites/laser.vmt");
-		g_HaloSprite = PrecacheModel("materials/sprites/halo01.vmt");
-		g_BeamSprite2 = PrecacheModel("sprites/bluelight1.vmt");
-		g_GlowSprite = PrecacheModel("sprites/blueglow2.vmt");
-		g_ExplosionSprite = PrecacheModel("sprites/sprite_fire01.vmt");
+		SetFailState("Unable to load game config funcommands.games");
+		return;
 	}
 	
+	if (GameConfGetKeyValue(gameConfig, "SoundBlip", g_BlipSound, sizeof(g_BlipSound)) && g_BlipSound[0])
+	{
+		PrecacheSound(g_BlipSound, true);
+	}
+	
+	if (GameConfGetKeyValue(gameConfig, "SoundBeep", g_BeepSound, sizeof(g_BeepSound)) && g_BeepSound[0])
+	{
+		PrecacheSound(g_BeepSound, true);
+	}
+	
+	if (GameConfGetKeyValue(gameConfig, "SoundFinal", g_FinalSound, sizeof(g_FinalSound)) && g_FinalSound[0])
+	{
+		PrecacheSound(g_FinalSound, true);
+	}
+	
+	if (GameConfGetKeyValue(gameConfig, "SoundBoom", g_BoomSound, sizeof(g_BoomSound)) && g_BoomSound[0])
+	{
+		PrecacheSound(g_BoomSound, true);
+	}
+	
+	if (GameConfGetKeyValue(gameConfig, "SoundFreeze", g_FreezeSound, sizeof(g_FreezeSound)) && g_FreezeSound[0])
+	{
+		PrecacheSound(g_FreezeSound, true);
+	}
+	
+	new String:buffer[PLATFORM_MAX_PATH];
+	if (GameConfGetKeyValue(gameConfig, "SpriteBeam", buffer, sizeof(buffer)) && buffer[0])
+	{
+		g_BeamSprite = PrecacheModel(buffer);
+	}
+	
+	if (GameConfGetKeyValue(gameConfig, "SpriteBeam2", buffer, sizeof(buffer)) && buffer[0])
+	{
+		g_BeamSprite2 = PrecacheModel(buffer);
+	}
+	
+	if (GameConfGetKeyValue(gameConfig, "SpriteExplosion", buffer, sizeof(buffer)) && buffer[0])
+	{
+		g_ExplosionSprite = PrecacheModel(buffer);
+	}
+	
+	if (GameConfGetKeyValue(gameConfig, "SpriteGlow", buffer, sizeof(buffer)) && buffer[0])
+	{
+		g_GlowSprite = PrecacheModel(buffer);
+	}
+	
+	if (GameConfGetKeyValue(gameConfig, "SpriteHalo", buffer, sizeof(buffer)) && buffer[0])
+	{
+		g_HaloSprite = PrecacheModel(buffer);
+	}
+	
+	CloseHandle(gameConfig);
 }
 
 public OnMapEnd()

@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 et:
  * =============================================================================
  * SourcePawn
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -58,7 +58,7 @@ SourcePawnEngine g_engine1;
 
 using namespace SourcePawn;
 
-#define ERROR_MESSAGE_MAX		25
+#define ERROR_MESSAGE_MAX		30
 static const char *g_ErrorMsgTable[] = 
 {
 	NULL,
@@ -89,6 +89,9 @@ static const char *g_ErrorMsgTable[] =
 	"Call was aborted",
 	"Plugin format is too old",
 	"Plugin format is too new",
+    "Out of memory",
+    "Integer overflow",
+    "Script execution timed out"
 };
 
 const char *SourcePawnEngine::GetErrorString(int error)
@@ -275,7 +278,7 @@ bool CContextTrace::GetTraceInfo(CallStackInfo *trace)
 
 	if (m_Level == 0)
 	{
-		cip = m_ctx->err_cip;
+		cip = m_ctx->cip;
 	}
 	else if (m_ctx->rp > 0)
 	{

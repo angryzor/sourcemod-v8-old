@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet:
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -35,9 +35,9 @@
 #include "common_logic.h"
 #include <IGameConfigs.h>
 #include <ITextParsers.h>
-#include <sh_list.h>
-#include "sm_memtable.h"
-#include <sm_trie_tpl.h>
+#include <am-refcounting.h>
+#include <sm_stringhashmap.h>
+#include <sm_namehashset.h>
 
 using namespace SourceMod;
 using namespace SourceHook;
@@ -46,15 +46,18 @@ class SendProp;
 
 class CGameConfig : 
 	public ITextListener_SMC,
-	public IGameConfig
+	public IGameConfig,
+	public ke::Refcounted<CGameConfig>
 {
 	friend class GameConfigManager;
 public:
-	CGameConfig(const char *file);
+	CGameConfig(const char *file, const char *engine = NULL);
 	~CGameConfig();
 public:
 	bool Reparse(char *error, size_t maxlength);
 	bool EnterFile(const char *file, char *error, size_t maxlength);
+	void SetBaseEngine(const char *engine);
+	void SetParseEngine(const char *engine);
 public: //ITextListener_SMC
 	SMCResult ReadSMC_NewSection(const SMCStates *states, const char *name);
 	SMCResult ReadSMC_KeyValue(const SMCStates *states, const char *key, const char *value);
@@ -65,18 +68,18 @@ public: //IGameConfig
 	SendProp *GetSendProp(const char *key);
 	bool GetMemSig(const char *key, void **addr);
 	bool GetAddress(const char *key, void **addr);
-public:
-	void IncRefCount();
-	unsigned int DecRefCount();
+public: //NameHashSet
+	static inline bool matches(const char *key, const CGameConfig *value)
+	{
+		return strcmp(key, value->m_File) == 0;
+	}
 private:
-	BaseStringTable *m_pStrings;
 	char m_File[PLATFORM_MAX_PATH];
 	char m_CurFile[PLATFORM_MAX_PATH];
-	KTrie<int> m_Offsets;
-	KTrie<SendProp *> m_Props;
-	KTrie<int> m_Keys;
-	KTrie<void *> m_Sigs;
-	unsigned int m_RefCount;
+	StringHashMap<int> m_Offsets;
+	StringHashMap<SendProp *> m_Props;
+	StringHashMap<ke::AString> m_Keys;
+	StringHashMap<void *> m_Sigs;
 	/* Parse states */
 	int m_ParseState;
 	unsigned int m_IgnoreLevel;
@@ -89,6 +92,7 @@ private:
 	bool matched_game;
 	bool had_engine;
 	bool matched_engine;
+	bool matched_platform;
 
 	/* Custom Sections */
 	unsigned int m_CustomLevel;
@@ -110,7 +114,9 @@ private:
 	char m_AddressSignature[64];
 	int m_AddressReadCount;
 	int m_AddressRead[8];
-	KTrie<AddressConf> *m_pAddresses;
+	StringHashMap<AddressConf> m_Addresses;
+	const char *m_pEngine;
+	const char *m_pBaseEngine;
 };
 
 class GameConfigManager : 
@@ -134,11 +140,12 @@ public: //SMGlobalClass
 	void OnSourceModStartup(bool late);
 	void OnSourceModAllInitialized();
 	void OnSourceModAllShutdown();
-private:
-	List<CGameConfig *> m_cfgs;
-	KTrie<CGameConfig *> m_Lookup;
 public:
-	KTrie<ITextListener_SMC *> m_customHandlers;
+	void RemoveCachedConfig(CGameConfig *config);
+private:
+	NameHashSet<CGameConfig *> m_Lookup;
+public:
+	StringHashMap<ITextListener_SMC *> m_customHandlers;
 };
 
 extern GameConfigManager g_GameConfigs;

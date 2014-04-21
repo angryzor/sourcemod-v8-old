@@ -94,8 +94,12 @@
 			"engine"			"left4dead"
 			"engine"			"left4dead2"
 			"engine"			"alienswarm"
+			"engine"			"blade"
+			"engine"			"insurgency"
 			"engine"			"csgo"
 			"engine"			"dota"
+			"engine"			"sdk2013"
+			"engine"			"contagion"
 		}
 		
 		"Offsets"
@@ -130,7 +134,8 @@
 			"game"					"cstrike"
 			"game"					"dod"
 			"game"					"sourceforts"
-			"game"					"insurgency"
+			"game"					"$Insurgency" // mod
+			"game"					"$INSURGENCY" // retail game
 			"game"					"tf"
 			"game"					"pvkii"
 			"game"					"diprip"
@@ -153,6 +158,7 @@
 			"game"					"esmod"
 			"game"					"nucleardawn"
 			"game"					"csgo"
+			"game"					"berimbau"
 		}
 
 		"Keys"
@@ -184,6 +190,8 @@
 			"game"					"dinodday"
 			"game"					"nucleardawn"
 			"game"					"csgo"
+			"game"					"berimbau"
+			"game"					"$INSURGENCY" // retail game
 		}
 		
 		"Keys"
@@ -206,7 +214,7 @@
 			"game"					"obsidian"
 			"game"					"zombie_master"
 			"game"					"bg2"
- 			"game"					"insurgency"
+ 			"game"					"$Insurgency" // mod
 			"game"					"cspromod"
 			"game"					"pvkii"
 			"game"					"zps"
@@ -223,6 +231,7 @@
 			"game"					"hl2ctf"
 			"game"					"ag2"
 			"game"					"nmrih"
+			"game"					"berimbau"
 		}
 		
 		"Keys"
@@ -252,7 +261,8 @@
 			"GameExtension"			"game.tf2"
 		}
 	}
-	"insurgency"
+	
+	"$Insurgency" // mod
 	{
 		"Keys"
 		{
@@ -260,8 +270,15 @@
 		}
 	}
 	
-	"csgo"
+	"#default"
 	{
+		"#supported"
+		{
+			"engine"	"csgo"
+			"engine"	"blade"
+			"engine"	"insurgency"
+		}
+		
 		"Keys"
 		{
 			"RadioMenuMaxPageItems"	"9"

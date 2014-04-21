@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -34,47 +34,64 @@
 
 #include "sm_globals.h"
 #include "sourcemm_api.h"
-#include "ForwardSys.h"
-#include "sm_trie.h"
-#include "sm_memtable.h"
+#include <IForwardSys.h>
 #include <sh_list.h>
 #include <sh_string.h>
 #include <IRootConsoleMenu.h>
 #include <IAdminSystem.h>
 #include "concmd_cleaner.h"
+#include <sm_stringhashmap.h>
+#include <am-utility.h>
+#include <am-inlinelist.h>
+#include <am-linkedlist.h>
+#include <am-refcounting.h>
 
 using namespace SourceHook;
 
-enum CmdType
+struct CmdHook;
+struct ConCmdInfo;
+
+struct CommandGroup : public ke::Refcounted<CommandGroup>
 {
-	Cmd_Server,
-	Cmd_Admin,
+	ke::LinkedList<CmdHook *> hooks;
 };
 
 struct AdminCmdInfo
 {
-	AdminCmdInfo()
+	AdminCmdInfo(const ke::Ref<CommandGroup> &group, FlagBits flags)
+		: group(group),
+		  flags(flags),
+		  eflags(0)
 	{
-		cmdGrpId = -1;
-		flags = 0;
-		eflags = 0;
 	}
-	int cmdGrpId;			/* index into cmdgroup string table */
+	ke::Ref<CommandGroup> group;
 	FlagBits flags;			/* default flags */
 	FlagBits eflags;		/* effective flags */
 };
 
-struct CmdHook
+struct CmdHook : public ke::InlineListNode<CmdHook>
 {
-	CmdHook()
+	enum Type {
+		Server,
+		Client
+	};
+
+	CmdHook(Type type, ConCmdInfo *cmd, IPluginFunction *fun, const char *description)
+		: type(type),
+		  info(cmd),
+		  pf(fun),
+		  helptext(description)
 	{
-		pf = NULL;
-		pAdmin = NULL;
 	}
-	IPluginFunction *pf;	/* function hook */
-	String helptext;		/* help text */
-	AdminCmdInfo *pAdmin;	/* admin requirements, if any */
+
+	Type type;
+	ConCmdInfo *info;
+	IPluginFunction *pf;				/* function hook */
+	ke::AString helptext;				/* help text */
+	ke::AutoPtr<AdminCmdInfo> admin;	/* admin requirements, if any */
 };
+
+typedef ke::InlineList<CmdHook> CmdHookList;
 
 struct ConCmdInfo
 {
@@ -82,12 +99,12 @@ struct ConCmdInfo
 	{
 		sourceMod = false;
 		pCmd = NULL;
+		eflags = 0;
 	}
 	bool sourceMod;					/**< Determines whether or not concmd was created by a SourceMod plugin */
 	ConCommand *pCmd;				/**< Pointer to the command itself */
-	List<CmdHook *> srvhooks;		/**< Hooks as a server command */
-	List<CmdHook *> conhooks;		/**< Hooks as a console command */
-	AdminCmdInfo admin;				/**< Admin info, if any */
+	CmdHookList hooks;				/**< Hook list */
+	FlagBits eflags;				/**< Effective admin flags */
 };
 
 typedef List<ConCmdInfo *> ConCmdList;
@@ -138,8 +155,6 @@ private:
 	void SetCommandClient(int client);
 	void AddToCmdList(ConCmdInfo *info);
 	void RemoveConCmd(ConCmdInfo *info, const char *cmd, bool is_read_safe, bool untrack);
-	void RemoveConCmds(List<CmdHook *> &cmdlist);
-	void RemoveConCmds(List<CmdHook *> &cmdlist, IPluginContext *pContext);
 	bool CheckAccess(int client, const char *cmd, AdminCmdInfo *pAdmin);
 
 	// Case insensitive
@@ -157,11 +172,12 @@ public:
 		return m_CmdList;
 	}
 private:
-	Trie *m_pCmds;					/* command lookup */
-	Trie *m_pCmdGrps;				/* command group lookup */
+	typedef StringHashMap<ke::Ref<CommandGroup> > GroupMap;
+
+	StringHashMap<ConCmdInfo *> m_Cmds; /* command lookup */
+	GroupMap m_CmdGrps;				/* command group map */
 	ConCmdList m_CmdList;			/* command list */
 	int m_CmdClient;				/* current client */
-	BaseStringTable m_Strings;		/* string table */
 };
 
 extern ConCmdManager g_ConCmds;

@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -30,7 +30,7 @@
  */
 
 #include <sh_list.h>
-#include <sm_trie_tpl.h>
+#include <sm_namehashset.h>
 #include "common_logic.h"
 #include "CellArray.h"
 #include <IGameHelpers.h>
@@ -50,6 +50,11 @@ struct maplist_info_t
 	time_t last_modified_time;
 	CellArray *pArray;
 	int serial;
+
+	static inline bool matches(const char *key, const maplist_info_t *value)
+	{
+		return strcmp(value->name, key) == 0;
+	}
 };
 
 #define MAPLIST_FLAG_MAPSFOLDER		(1<<0)		/**< On failure, use all maps in the maps folder. */
@@ -80,12 +85,38 @@ public:
 	{
 		DumpCache(NULL);
 	}
+	void GetMapCycleFilePath(char *pBuffer, int maxlen)
+	{
+		const char *pEngineName = smcore.GetSourceEngineName();
+		const char *pMapCycleFileName = m_pMapCycleFile ? smcore.GetCvarString(m_pMapCycleFile) : "mapcycle.txt";
+
+		if (strcmp(pEngineName, "tf2") == 0 || strcmp(pEngineName, "css") == 0
+			|| strcmp(pEngineName, "dods") == 0 || strcmp(pEngineName, "hl2dm") == 0)
+		{
+			// These four games and Source SDK 2013 do a lookup in this order; so shall we.
+			g_pSM->Format(pBuffer, maxlen, "cfg/%s", pMapCycleFileName);
+
+			if (!smcore.filesystem->FileExists(pBuffer, "GAME"))
+			{
+				g_pSM->Format(pBuffer, maxlen, "%s", pMapCycleFileName);
+
+				if (!smcore.filesystem->FileExists(pBuffer, "GAME"))
+				{
+					g_pSM->Format(pBuffer, maxlen, "cfg/mapcycle_default.txt");
+				}
+			}
+		}
+		else
+		{
+			g_pSM->Format(pBuffer, maxlen, "%s", pMapCycleFileName);
+		}
+	}
 	void AddOrUpdateDefault(const char *name, const char *file)
 	{
 		char path[PLATFORM_MAX_PATH];
-		maplist_info_t *pMapList, **ppMapList;
+		maplist_info_t *pMapList;
 
-		if ((ppMapList = m_ListLookup.retrieve(name)) == NULL)
+		if (!m_ListLookup.retrieve(name, &pMapList))
 		{
 			pMapList = new maplist_info_t;
 			pMapList->bIsCompat = true;
@@ -93,28 +124,22 @@ public:
 			pMapList->last_modified_time = 0;
 			smcore.strncopy(pMapList->name, name, sizeof(pMapList->name));
 			pMapList->pArray = NULL;
-			g_pSM->BuildPath(Path_Game, pMapList->path, sizeof(pMapList->path), "%s", file);
+			smcore.strncopy(pMapList->path, file, sizeof(pMapList->path));
 			pMapList->serial = 0;
 			m_ListLookup.insert(name, pMapList);
 			m_MapLists.push_back(pMapList);
 			return;
 		}
 
-		pMapList = *ppMapList;
-
 		/* Don't modify if it's from the config file */
 		if (!pMapList->bIsCompat)
-		{
 			return;
-		}
 
-		g_pSM->BuildPath(Path_Game, path, sizeof(path), "%s", file);
+		smcore.strncopy(path, file, sizeof(path));
 
 		/* If the path matches, don't reset the serial/time */
 		if (strcmp(path, pMapList->path) == 0)
-		{
 			return;
-		}
 
 		smcore.strncopy(pMapList->path, path, sizeof(pMapList->path));
 		pMapList->bIsPath = true;
@@ -156,11 +181,9 @@ public:
 
 		pDefList->bIsPath = true;
 		smcore.strncopy(pDefList->name, "mapcyclefile", sizeof(pDefList->name));
-		g_pSM->BuildPath(Path_Game,
-			pDefList->path, 
-			sizeof(pDefList->path),
-			"%s",
-			m_pMapCycleFile ? smcore.GetCvarString(m_pMapCycleFile) : "mapcycle.txt");
+
+		GetMapCycleFilePath(pDefList->path, sizeof(pDefList->path));
+		
 		pDefList->last_modified_time = 0;
 		pDefList->pArray = NULL;
 		pDefList->serial = 0;
@@ -191,7 +214,7 @@ public:
 		List<maplist_info_t *>::iterator iter = compat.begin();
 		while (iter != compat.end())
 		{
-			if (m_ListLookup.retrieve((*iter)->name) != NULL)
+			if (m_ListLookup.contains((*iter)->name))
 			{
 				/* The compatibility shim is no longer needed. */
 				delete (*iter)->pArray;
@@ -255,11 +278,7 @@ public:
 
 		if (strcmp(key, "file") == 0)
 		{
-			g_pSM->BuildPath(Path_Game, 
-				m_pCurMapList->path,
-				sizeof(m_pCurMapList->path),
-				"%s",
-				value);
+			smcore.strncopy(m_pCurMapList->path, value, sizeof(m_pCurMapList->path));
 			m_pCurMapList->bIsPath = true;
 		}
 		else if (strcmp(key, "target") == 0)
@@ -282,7 +301,7 @@ public:
 		{
 			if (m_pCurMapList != NULL
 				&& m_pCurMapList->path[0] != '\0'
-				&& m_ListLookup.retrieve(m_pCurMapList->name) == NULL)
+				&& !m_ListLookup.contains(m_pCurMapList->name))
 			{
 				m_ListLookup.insert(m_pCurMapList->name, m_pCurMapList);
 				m_MapLists.push_back(m_pCurMapList);
@@ -451,19 +470,13 @@ private:
 	bool GetMapList(CellArray **ppArray, const char *name, int *pSerial)
 	{
 		time_t last_time;
-		maplist_info_t *pMapList, **ppMapList;
+		maplist_info_t *pMapList;
 
-		if ((ppMapList = m_ListLookup.retrieve(name)) == NULL)
-		{
+		if (!m_ListLookup.retrieve(name, &pMapList))
 			return false;
-		}
-
-		pMapList = *ppMapList;
 
 		if (!pMapList->bIsPath)
-		{
 			return GetMapList(ppArray, pMapList->path, pSerial);
-		}
 
 		/* If it is a path, and the path is "*", assume all files must be used. */
 		if (strcmp(pMapList->path, "*") == 0)
@@ -475,11 +488,7 @@ private:
 		if (m_pMapCycleFile != NULL && strcmp(name, "mapcyclefile") == 0)
 		{
 			char path[PLATFORM_MAX_PATH];
-			g_pSM->BuildPath(Path_Game,
-				path, 
-				sizeof(path),
-				"%s",
-				m_pMapCycleFile ? smcore.GetCvarString(m_pMapCycleFile) : "mapcycle.txt");
+			GetMapCycleFilePath(path, sizeof(path));
 
 			if (strcmp(path, pMapList->path) != 0)
 			{
@@ -492,11 +501,11 @@ private:
 			|| last_time > pMapList->last_modified_time)
 		{
 			/* Reparse */
-			FILE *fp;
+			FileHandle_t fp;
 			cell_t *blk;
 			char buffer[255];
 
-			if ((fp = fopen(pMapList->path, "rt")) == NULL)
+			if ((fp = smcore.filesystem->Open(pMapList->path, "rt", "GAME")) == NULL)
 			{
 				return false;
 			}
@@ -504,7 +513,7 @@ private:
 			delete pMapList->pArray;
 			pMapList->pArray = new CellArray(64);
 
-			while (!feof(fp) && fgets(buffer, sizeof(buffer), fp) != NULL)
+			while (!smcore.filesystem->EndOfFile(fp) && smcore.filesystem->ReadLine(buffer, sizeof(buffer), fp) != NULL)
 			{
 				size_t len = strlen(buffer);
 				char *ptr = smcore.TrimWhitespace(buffer, len);
@@ -514,17 +523,35 @@ private:
 				{
 					continue;
 				}
+				
+				if (strcmp(smcore.GetSourceEngineName(), "insurgency") == 0)
+				{
+					// Insurgency (presumably?) doesn't allow spaces in map names
+					// and does use a space to delimit the map name from the map mode
+					int i = 0;
+					while (ptr[i] != 0)
+					{
+						if (ptr[i] == ' ')
+						{
+							ptr[i] = 0;
+							break;
+						}
+						++i;
+					}
+				}
+
 				if (!gamehelpers->IsMapValid(ptr))
 				{
 					continue;
 				}
+
 				if ((blk = pMapList->pArray->push()) != NULL)
 				{
 					smcore.strncopy((char *)blk, ptr, 255);
 				}
 			}
 
-			fclose(fp);
+			smcore.filesystem->Close(fp);
 
 			pMapList->last_modified_time = last_time;
 			pMapList->serial = ++m_nSerialChange;
@@ -563,7 +590,7 @@ private:
 	char m_ConfigFile[PLATFORM_MAX_PATH];
 	time_t m_ConfigLastChanged;
 	ConVar *m_pMapCycleFile;
-	KTrie<maplist_info_t *> m_ListLookup;
+	NameHashSet<maplist_info_t *> m_ListLookup;
 	List<maplist_info_t *> m_MapLists;
 	MapListState m_CurState;
 	unsigned int m_IgnoreLevel;

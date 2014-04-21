@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet:
  * =============================================================================
  * SourceMod Client Preferences Extension
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -39,6 +39,9 @@
 #include "smsdk_ext.h"
 #include "sh_list.h"
 
+#include <am-thread-utils.h>
+#include <am-refcounting.h>
+
 char * UTIL_strncpy(char * destination, const char * source, size_t num);
 
 #include "cookie.h"
@@ -73,11 +76,8 @@ public:
 	 * @return			True to succeed loading, false to fail.
 	 */
 	virtual bool SDK_OnLoad(char *error, size_t maxlength, bool late);
-	
-	/**
-	 * @brief This is called right before the extension is unloaded.
-	 */
-	virtual void SDK_OnUnload();
+
+	virtual void SDK_OnDependenciesDropped();
 
 	/**
 	 * @brief This is called once all known extensions have been loaded.
@@ -153,16 +153,15 @@ public:
 	IdentityToken_t *GetIdentity() const;
 public:
 	IDBDriver *Driver;
-	IDatabase *Database;
+	ke::Ref<IDatabase> Database;
 	IPhraseCollection *phrases;
 	const DatabaseInfo *DBInfo;
 
-	IMutex *cookieMutex;
 	bool databaseLoading;
 
 private:
 	SourceHook::List<TQueryOp *> cachedQueries;
-	IMutex *queryMutex;
+	ke::Mutex queryLock;
 	IdentityToken_t *identity;
 };
 

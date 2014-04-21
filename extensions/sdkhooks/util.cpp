@@ -34,45 +34,15 @@
 #include "extension.h"
 #include "util.h"
 
-CBaseEntity *UTIL_GetCBaseEntity(int num, bool onlyPlayers)
+bool UTIL_ContainsDataTable(SendTable *pTable, const char *name)
 {
-	edict_t *pEdict = PEntityOfEntIndex(num);
-	if (!pEdict || pEdict->IsFree())
-	{
-		return NULL;
-	}
-
-	if (num > 0 && num <= playerhelpers->GetMaxClients())
-	{
-		IGamePlayer *pPlayer = playerhelpers->GetGamePlayer(pEdict);
-		if (!pPlayer || !pPlayer->IsConnected())
-		{
-			return NULL;
-		}
-	}
-	else if (onlyPlayers)
-	{
-		return NULL;
-	}
-
-	IServerUnknown *pUnk;
-	if ((pUnk=pEdict->GetUnknown()) == NULL)
-	{
-		return NULL;
-	}
-
-	return pUnk->GetBaseEntity();
-}
-
-bool UTIL_FindDataTable(SendTable *pTable, 
-						  const char *name,
-						  sm_sendprop_info_t *info,
-						  unsigned int offset)
-{
-	const char *pname;
+	const char *pname = pTable->GetName();
 	int props = pTable->GetNumProps();
 	SendProp *prop;
 	SendTable *table;
+
+	if (pname && strcmp(name, pname) == 0)
+		return true;
 
 	for (int i=0; i<props; i++)
 	{
@@ -83,16 +53,10 @@ bool UTIL_FindDataTable(SendTable *pTable,
 			pname = table->GetName();
 			if (pname && strcmp(name, pname) == 0)
 			{
-				info->prop = prop;
-				info->actual_offset = offset + info->prop->GetOffset();
 				return true;
 			}
 
-			if (UTIL_FindDataTable(table, 
-				name,
-				info,
-				offset + prop->GetOffset())
-				)
+			if (UTIL_ContainsDataTable(table, name))
 			{
 				return true;
 			}

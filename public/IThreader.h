@@ -34,7 +34,9 @@
 
 /**
  * @file IThreader.h
- * @brief Contains platform independent routines for threading.
+ *
+ * @brief Contains platform independent routines for threading. These tools
+ * should be considered deprecated. Use public/amtl/am-thread-utils.h.
  */
 
 #include <IShareSys.h>

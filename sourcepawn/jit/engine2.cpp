@@ -1,4 +1,4 @@
-#include <sourcemod_version.h>
+// vim: set ts=4 sw=4 tw=99 noet:
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,12 +7,15 @@
 #include "zlib/zlib.h"
 #include "BaseRuntime.h"
 #include "sp_vm_engine.h"
+#include "watchdog_timer.h"
+#include <sourcemod_version.h>
 
 using namespace SourcePawn;
 
 SourcePawnEngine2::SourcePawnEngine2()
 {
 	m_Profiler = NULL;
+	jit_enabled_ = true;
 }
 
 IPluginRuntime *SourcePawnEngine2::LoadPlugin(ICompilation *co, const char *file, int *err)
@@ -106,19 +109,19 @@ IPluginRuntime *SourcePawnEngine2::LoadPlugin(ICompilation *co, const char *file
 		#endif
 		)
 		{
-			pRuntime->m_pPlugin->name = strdup(&file[i+1]);
+			pRuntime->SetName(&file[i+1]);
 			break;
 		}
 	}
 
-	if (pRuntime->m_pPlugin->name == NULL)
+	if (!pRuntime->plugin()->name)
 	{
-		pRuntime->m_pPlugin->name = strdup(file);
+		pRuntime->SetName(file);
 	}
 
 	pRuntime->ApplyCompilationOptions(co);
 
-    fclose(fp);
+	fclose(fp);
 
 	return pRuntime;
 
@@ -144,12 +147,12 @@ void SourcePawnEngine2::DestroyFakeNative(SPVM_NATIVE_FUNC func)
 
 const char *SourcePawnEngine2::GetEngineName()
 {
-	return "SourcePawn 1.1, jit-x86";
+	return "SourcePawn 1.2, jit-x86";
 }
 
 const char *SourcePawnEngine2::GetVersionString()
 {
-	return SM_VERSION_STRING;
+	return SOURCEMOD_VERSION;
 }
 
 IProfiler *SourcePawnEngine2::GetProfiler()
@@ -189,6 +192,7 @@ bool SourcePawnEngine2::Initialize()
 
 void SourcePawnEngine2::Shutdown()
 {
+	g_WatchdogTimer.Shutdown();
 	g_Jit.ShutdownJIT();
 }
 
@@ -204,9 +208,15 @@ IPluginRuntime *SourcePawnEngine2::CreateEmptyRuntime(const char *name, uint32_t
 		return NULL;
 	}
 
-	rt->m_pPlugin->name = strdup(name != NULL ? name : "<anonymous>");
+	rt->SetName(name != NULL ? name : "<anonymous>");
 
 	rt->ApplyCompilationOptions(NULL);
 	
 	return rt;
 }
+
+bool SourcePawnEngine2::InstallWatchdogTimer(size_t timeout_ms)
+{
+	return g_WatchdogTimer.Initialize(timeout_ms);
+}
+

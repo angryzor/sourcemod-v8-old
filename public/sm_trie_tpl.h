@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -45,11 +45,15 @@ enum NodeType
 };
 
 /**
- * @brief Trie class for storing key/value pairs, based on double array tries.
- * @file sm_trie_tpl.h
+ * @brief DEPRECATED. This class scales extremely poorly; insertion scales
+ * quadratic (O(n^2)) with respect to the number of elements in the table.
+ * Only use this class if you have less than 200 elements or so. Otherwise,
+ * use StringHashMap in sm_hashtable.h which scales linearly and has comparable
+ * retrievable performance.
  *
- * For full works cited and implementation overview, there is a big comment 
- * block at the bottom of this file.
+ * See bug 5878 for more detail.
+ *
+ * @file sm_trie_tpl.h
  */
 
 template <typename K>
@@ -102,6 +106,22 @@ public:
 			return NULL;
 		}
 		return &node->value;
+	}
+
+	/**
+	 * @brief Wrapper around retrieve(key) for a cleaner API.
+	 *
+	 * @param key		Key to retrieve.
+	 * @param result	Pointer to store the result, must be non-NULL.
+	 * @return			True if found, false otherwise.
+	 */
+	bool retrieve(const char *key, K *result)
+	{
+		KTrieNode *node = internal_retrieve(key);
+		if (!node || !node->valset)
+			return false;
+		*result = node->value;
+		return true;
 	}
 
 	/**

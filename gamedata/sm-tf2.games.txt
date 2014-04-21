@@ -19,8 +19,8 @@
 			{
 				"library"	"server"
 				"windows"	"\x55\x8B\xEC\x51\x56\x8B\xF1\x8B\x2A\x2A\x2A\x2A\x2A\x8B\x01\x8B\x2A\x2A\x2A\x2A\x2A\xFF\xD2\x84\xC0\x0F\x2A\x2A\x2A\x2A\x2A\x57\x6A\x2A\x8D\x2A\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\x84\xC0\x0F\x2A\x2A\x2A\x2A\x2A\x8B\x2A\x2A\x2A\x2A\x2A\xC1\x2A\x2A\x24\x01\x0F\x2A\x2A\x2A\x2A\x2A\x8B"
-				"linux"		"@_ZN15CTFPlayerShared4BurnEP9CTFPlayerP13CTFWeaponBase"
-				"mac"		"@_ZN15CTFPlayerShared4BurnEP9CTFPlayerP13CTFWeaponBase"
+				"linux"		"@_ZN15CTFPlayerShared4BurnEP9CTFPlayerP13CTFWeaponBasef"
+				"mac"		"@_ZN15CTFPlayerShared4BurnEP9CTFPlayerP13CTFWeaponBasef"
 			}
 			"RemoveDisguise"
 			{
@@ -36,38 +36,17 @@
 				"linux"		"@_ZN15CTFPlayerShared8DisguiseEiiP9CTFPlayerb"
 				"mac"		"@_ZN15CTFPlayerShared8DisguiseEiiP9CTFPlayerb"
 			}
-			"CalcCritical"
-			{
-				"library"	"server"
-				"linux"		"@_ZN13CTFWeaponBase26CalcIsAttackCriticalHelperEv"
-				"mac"		"@_ZN13CTFWeaponBase26CalcIsAttackCriticalHelperEv"
-				"windows"	"\x55\x8B\xEC\x83\xEC\x2A\x56\x57\x6A\x00\x68\x2A\x2A\x2A\x2A\x68\x2A\x2A\x2A\x2A\x6A\x00\x8B\xF1\xE8\x2A\x2A\x2A\x2A\x50\xE8\x2A\x2A\x2A\x2A\x8B\xF8\x83\xC4\x2A\x85\xFF\x74\x2A\x8B"
-			}
-			"CalcCriticalMelee"
-			{
-				"library"	"server"
-				"linux"		"@_ZN18CTFWeaponBaseMelee26CalcIsAttackCriticalHelperEv"
-				"mac"		"@_ZN18CTFWeaponBaseMelee26CalcIsAttackCriticalHelperEv"
-				"windows"	"\x55\x8B\xEC\x83\xEC\x08\x53\x56\x8B\xF1\xE8\x2A\x2A\x2A\x2A\x8B\xD8\x85\xDB\x74\x10"
-			}
-			"CalcCriticalBow"
-			{
-				"library"	"server"
-				"linux"		"@_ZN14CTFCompoundBow26CalcIsAttackCriticalHelperEv"
-				"mac"		"@_ZN14CTFCompoundBow26CalcIsAttackCriticalHelperEv"
-				"windows"	"\xE8\x2A\x2A\x2A\x2A\x85\xC0\x74\x2A\x8D\x88\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\x84\xC0\x74\x2A\xB0"
-			}
 			"Regenerate"
 			{
 				"library"	"server"
-				"windows"	"\x55\x8B\xEC\x83\xEC\x2A\xF3\x0F\x2A\x2A\x2A\x2A\x2A\x2A\x53\x56\x8B\xF1\x8B"
+				"windows"	"\x55\x8B\xEC\x83\xEC\x2A\x53\x56\x8B\xF1\x8B\x06\x8B\x2A\x2A\x2A\x2A\x2A\x57\xFF\xD2\x8B\x8E\x2A\x2A\x2A\x2A\x8D\x9E"
 				"linux"		"@_ZN9CTFPlayer10RegenerateEb"
 				"mac"		"@_ZN9CTFPlayer10RegenerateEb"
 			}
 			"AddCondition"
 			{
 				"library"	"server"
-				"windows"	"\x55\x8B\xEC\x83\xEC\x08\x53\x56\x8B\x75\x08\x57\x8B\xD9"
+				"windows"	"\x55\x8B\xEC\x83\xEC\x08\x53\x8B\xD9\x83\xBB\x2A\x2A\x2A\x2A\x00\x0F"
 				"linux"		"@_ZN15CTFPlayerShared7AddCondE7ETFCondfP11CBaseEntity"
 				"mac"		"@_ZN15CTFPlayerShared7AddCondE7ETFCondfP11CBaseEntity"
 			}
@@ -102,9 +81,9 @@
 			"IsHolidayActive"
 			{
 				"library"	"server"
-				"windows"	"\x55\x8B\xEC\x80\x3D\x2A\x2A\x2A\x2A\x2A\x75\x2A\xE8"
-				"linux"		"@_Z20UTIL_IsHolidayActivei"
-				"mac"		"@_Z20UTIL_IsHolidayActivei"
+				"windows"	"\x55\x8B\xEC\xA1\x2A\x2A\x2A\x2A\x83\x78\x30\x00\x74\x2A\x32\xC0"
+				"linux"		"@_Z18TF_IsHolidayActivei"
+				"mac"		"@_Z18TF_IsHolidayActivei"
 			}
 			"MakeBleed"
 			{
@@ -135,6 +114,18 @@
 				"windows"	"324"
 				"linux"		"325"
 				"mac"		"325"
+			}
+			"CalcIsAttackCriticalHelper"
+			{
+				"windows"	"381"
+				"linux"		"388"
+				"mac"		"388"
+			}
+			"CalcIsAttackCriticalHelperNoCrits"
+			{
+				"windows"	"382"
+				"linux"		"389"
+				"mac"		"389"
 			}
 		}
 	}

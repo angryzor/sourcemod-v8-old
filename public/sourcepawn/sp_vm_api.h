@@ -40,7 +40,7 @@
 
 /** SourcePawn Engine API Version */
 #define SOURCEPAWN_ENGINE_API_VERSION	4
-#define SOURCEPAWN_ENGINE2_API_VERSION	4
+#define SOURCEPAWN_ENGINE2_API_VERSION	6
 
 #if !defined SOURCEMOD_BUILD
 #define SOURCEMOD_BUILD
@@ -1286,6 +1286,30 @@ namespace SourcePawn
 		 * @return			New runtime, or NULL if not enough memory.
 		 */
 		virtual IPluginRuntime *CreateEmptyRuntime(const char *name, uint32_t memory) =0;
+
+		/**
+		 * @brief Initiates the watchdog timer with the specified timeout
+		 * length. This cannot be called more than once.
+		 *
+		 * @param timeout	Timeout, in ms.
+		 * @return			True on success, false on failure.
+		 */
+		virtual bool InstallWatchdogTimer(size_t timeout_ms) =0;
+
+		/**
+		 * @brief Sets whether the JIT is enabled or disabled.
+		 *
+		 * @param enabled	True or false to enable or disable.
+		 * @return			True if successful, false otherwise.
+		 */
+		virtual bool SetJitEnabled(bool enabled) =0;
+
+		/**
+		 * @brief Returns whether the JIT is enabled.
+		 *
+		 * @return			True if the JIT is enabled, false otherwise.
+		 */
+		virtual bool IsJitEnabled() =0;
 	};
 
 	class IDebugListenerV8 : public IDebugListener

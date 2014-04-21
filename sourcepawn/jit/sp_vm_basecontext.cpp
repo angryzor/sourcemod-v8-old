@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet:
  * =============================================================================
  * SourcePawn
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -36,7 +36,10 @@
 #include "sp_vm_api.h"
 #include "sp_vm_basecontext.h"
 #include "sp_vm_engine.h"
+#include "watchdog_timer.h"
 #include "x86/jit_x86.h"
+#include "engine2.h"
+#include "interpreter.h"
 
 using namespace SourcePawn;
 
@@ -46,7 +49,6 @@ using namespace SourcePawn;
 BaseContext::BaseContext(BaseRuntime *pRuntime)
 {
 	m_pRuntime = pRuntime;
-	m_pPlugin = m_pRuntime->m_pPlugin;
 
 	m_InExec = false;
 	m_CustomMsg = false;
@@ -75,8 +77,8 @@ BaseContext::BaseContext(BaseRuntime *pRuntime)
 		m_pNullString = NULL;
 	}
 
-	m_ctx.hp = m_pPlugin->data_size;
-	m_ctx.sp = m_pPlugin->mem_size - sizeof(cell_t);
+	m_ctx.hp = m_pRuntime->plugin()->data_size;
+	m_ctx.sp = m_pRuntime->plugin()->mem_size - sizeof(cell_t);
 	m_ctx.frm = m_ctx.sp;
 	m_ctx.n_err = SP_ERROR_NONE;
 	m_ctx.n_idx = SP_ERROR_NONE;
@@ -204,7 +206,7 @@ int BaseContext::HeapAlloc(unsigned int cells, cell_t *local_addr, cell_t **phys
 		return SP_ERROR_HEAPLOW;
 	}
 
-	addr = (cell_t *)(m_pPlugin->memory + m_ctx.hp);
+	addr = (cell_t *)(m_pRuntime->plugin()->memory + m_ctx.hp);
 	/* store size of allocation in cells */
 	*addr = (cell_t)cells;
 	addr++;
@@ -229,12 +231,12 @@ int BaseContext::HeapPop(cell_t local_addr)
 
 	/* check the bounds of this address */
 	local_addr -= sizeof(cell_t);
-	if (local_addr < (cell_t)m_pPlugin->data_size || local_addr >= m_ctx.sp)
+	if (local_addr < (cell_t)m_pRuntime->plugin()->data_size || local_addr >= m_ctx.sp)
 	{
 		return SP_ERROR_INVALID_ADDRESS;
 	}
 
-	addr = (cell_t *)(m_pPlugin->memory + local_addr);
+	addr = (cell_t *)(m_pRuntime->plugin()->memory + local_addr);
 	cellcount = (*addr) * sizeof(cell_t);
 	/* check if this memory count looks valid */
 	if ((signed)(m_ctx.hp - cellcount - sizeof(cell_t)) != local_addr)
@@ -250,7 +252,7 @@ int BaseContext::HeapPop(cell_t local_addr)
 
 int BaseContext::HeapRelease(cell_t local_addr)
 {
-	if (local_addr < (cell_t)m_pPlugin->data_size)
+	if (local_addr < (cell_t)m_pRuntime->plugin()->data_size)
 	{
 		return SP_ERROR_INVALID_ADDRESS;
 	}
@@ -334,14 +336,14 @@ int BaseContext::BindNativeToAny(SPVM_NATIVE_FUNC native)
 int BaseContext::LocalToPhysAddr(cell_t local_addr, cell_t **phys_addr)
 {
 	if (((local_addr >= m_ctx.hp) && (local_addr < m_ctx.sp)) 
-		|| (local_addr < 0) || ((ucell_t)local_addr >= m_pPlugin->mem_size))
+		|| (local_addr < 0) || ((ucell_t)local_addr >= m_pRuntime->plugin()->mem_size))
 	{
 		return SP_ERROR_INVALID_ADDRESS;
 	}
 
 	if (phys_addr)
 	{
-		*phys_addr = (cell_t *)(m_pPlugin->memory + local_addr);
+		*phys_addr = (cell_t *)(m_pRuntime->plugin()->memory + local_addr);
 	}
 
 	return SP_ERROR_NONE;
@@ -365,11 +367,11 @@ int BaseContext::PushCellArray(cell_t *local_addr, cell_t **phys_addr, cell_t ar
 int BaseContext::LocalToString(cell_t local_addr, char **addr)
 {
 	if (((local_addr >= m_ctx.hp) && (local_addr < m_ctx.sp))
-		|| (local_addr < 0) || ((ucell_t)local_addr >= m_pPlugin->mem_size))
+		|| (local_addr < 0) || ((ucell_t)local_addr >= m_pRuntime->plugin()->mem_size))
 	{
 		return SP_ERROR_INVALID_ADDRESS;
 	}
-	*addr = (char *)(m_pPlugin->memory + local_addr);
+	*addr = (char *)(m_pRuntime->plugin()->memory + local_addr);
 
 	return SP_ERROR_NONE;
 }
@@ -385,7 +387,7 @@ int BaseContext::StringToLocal(cell_t local_addr, size_t bytes, const char *sour
 	size_t len;
 
 	if (((local_addr >= m_ctx.hp) && (local_addr < m_ctx.sp))
-		|| (local_addr < 0) || ((ucell_t)local_addr >= m_pPlugin->mem_size))
+		|| (local_addr < 0) || ((ucell_t)local_addr >= m_pRuntime->plugin()->mem_size))
 	{
 		return SP_ERROR_INVALID_ADDRESS;
 	}
@@ -396,7 +398,7 @@ int BaseContext::StringToLocal(cell_t local_addr, size_t bytes, const char *sour
 	}
 
 	len = strlen(source);
-	dest = (char *)(m_pPlugin->memory + local_addr);
+	dest = (char *)(m_pRuntime->plugin()->memory + local_addr);
 
 	if (len >= bytes)
 	{
@@ -455,7 +457,7 @@ int BaseContext::StringToLocalUTF8(cell_t local_addr, size_t maxbytes, const cha
 
 	if (((local_addr >= m_ctx.hp) && (local_addr < m_ctx.sp))
 		|| (local_addr < 0)
-		|| ((ucell_t)local_addr >= m_pPlugin->mem_size))
+		|| ((ucell_t)local_addr >= m_pRuntime->plugin()->mem_size))
 	{
 		return SP_ERROR_INVALID_ADDRESS;
 	}
@@ -466,7 +468,7 @@ int BaseContext::StringToLocalUTF8(cell_t local_addr, size_t maxbytes, const cha
 	}
 
 	len = strlen(source);
-	dest = (char *)(m_pPlugin->memory + local_addr);
+	dest = (char *)(m_pRuntime->plugin()->memory + local_addr);
 
 	if ((size_t)len >= maxbytes)
 	{
@@ -555,6 +557,9 @@ int BaseContext::Execute2(IPluginFunction *function, const cell_t *params, unsig
 
 	fnid = function->GetFunctionID();
 
+	if (!g_WatchdogTimer.HandleInterrupt())
+		return SP_ERROR_TIMEOUT;
+
 	if (fnid & 1)
 	{	
 		public_id = fnid >> 1;
@@ -586,21 +591,18 @@ int BaseContext::Execute2(IPluginFunction *function, const cell_t *params, unsig
 
 	/* We got this far.  It's time to start profiling. */
 	
-	if ((m_pPlugin->prof_flags & SP_PROF_CALLBACKS) == SP_PROF_CALLBACKS)
+	if ((m_pRuntime->plugin()->prof_flags & SP_PROF_CALLBACKS) == SP_PROF_CALLBACKS)
 	{
-		serial = m_pPlugin->profiler->OnCallbackBegin(this, pubfunc);
+		serial = m_pRuntime->plugin()->profiler->OnCallbackBegin(this, pubfunc);
 	}
 
 	/* See if we have to compile the callee. */
-	if ((fn = m_pRuntime->m_PubJitFuncs[public_id]) == NULL)
+	if (g_engine2.IsJitEnabled() && (fn = m_pRuntime->m_PubJitFuncs[public_id]) == NULL)
 	{
-		uint32_t func_idx;
-
 		/* We might not have to - check pcode offset. */
-		if ((func_idx = FuncLookup((CompData *)m_pRuntime->m_pCo, pubfunc->code_offs)) != 0)
+		fn = m_pRuntime->GetJittedFunctionByOffset(pubfunc->code_offs);
+		if (fn)
 		{
-			fn = m_pRuntime->GetJittedFunction(func_idx);
-			assert(fn != NULL);
 			m_pRuntime->m_PubJitFuncs[public_id] = fn;
 		}
 		else
@@ -624,12 +626,12 @@ int BaseContext::Execute2(IPluginFunction *function, const cell_t *params, unsig
 	save_exec = m_InExec;
 	save_n_idx = m_ctx.n_idx;
 	save_rp = m_ctx.rp;
-	save_cip = m_ctx.err_cip;
+	save_cip = m_ctx.cip;
 
 	/* Push parameters */
 
 	m_ctx.sp -= sizeof(cell_t) * (num_params + 1);
-	sp = (cell_t *)(m_pPlugin->memory + m_ctx.sp);
+	sp = (cell_t *)(m_pRuntime->plugin()->memory + m_ctx.sp);
 
 	sp[0] = num_params;
 	for (unsigned int i = 0; i < num_params; i++)
@@ -646,7 +648,10 @@ int BaseContext::Execute2(IPluginFunction *function, const cell_t *params, unsig
 
 	/* Start the frame tracer */
 
-	ir = g_Jit.InvokeFunction(m_pRuntime, fn, result);
+	if (g_engine2.IsJitEnabled())
+		ir = g_Jit.InvokeFunction(m_pRuntime, fn, result);
+	else
+		ir = Interpret(m_pRuntime, pubfunc->code_offs, result);
 
 	/* Restore some states, stop the frame tracer */
 
@@ -678,6 +683,9 @@ int BaseContext::Execute2(IPluginFunction *function, const cell_t *params, unsig
 		}
 	}
 
+	if (ir == SP_ERROR_TIMEOUT)
+		g_WatchdogTimer.NotifyTimeoutReceived();
+
 	if (ir != SP_ERROR_NONE)
 	{
 		g_engine1.ReportError(m_pRuntime, ir, m_MsgCache, save_rp);
@@ -687,12 +695,12 @@ int BaseContext::Execute2(IPluginFunction *function, const cell_t *params, unsig
 	m_ctx.hp = save_hp;
 	m_ctx.rp = save_rp;
 	
-	if ((m_pPlugin->prof_flags & SP_PROF_CALLBACKS) == SP_PROF_CALLBACKS)
+	if ((m_pRuntime->plugin()->prof_flags & SP_PROF_CALLBACKS) == SP_PROF_CALLBACKS)
 	{
-		m_pPlugin->profiler->OnCallbackEnd(serial);
+		m_pRuntime->plugin()->profiler->OnCallbackEnd(serial);
 	}
 
-	m_ctx.err_cip = save_cip;
+	m_ctx.cip = save_cip;
 	m_ctx.n_idx = save_n_idx;
 	m_ctx.n_err = SP_ERROR_NONE;
 	m_MsgCache[0] = '\0';
@@ -746,7 +754,6 @@ int DebugInfo::LookupFunction(ucell_t addr, const char **name)
 	{
 		uint32_t max, iter;
 		sp_fdbg_symbol_t *sym;
-		sp_fdbg_arraydim_t *arr;
 		uint8_t *cursor = (uint8_t *)(m_pPlugin->debug.symbols);
 
 		max = m_pPlugin->debug.syms_num;
@@ -765,7 +772,6 @@ int DebugInfo::LookupFunction(ucell_t addr, const char **name)
 			if (sym->dimcount > 0)
 			{
 				cursor += sizeof(sp_fdbg_symbol_t);
-				arr = (sp_fdbg_arraydim_t *)cursor;
 				cursor += sizeof(sp_fdbg_arraydim_t) * sym->dimcount;
 				continue;
 			}
@@ -779,7 +785,6 @@ int DebugInfo::LookupFunction(ucell_t addr, const char **name)
 	{
 		uint32_t max, iter;
 		sp_u_fdbg_symbol_t *sym;
-		sp_u_fdbg_arraydim_t *arr;
 		uint8_t *cursor = (uint8_t *)(m_pPlugin->debug.symbols);
 
 		max = m_pPlugin->debug.syms_num;
@@ -798,7 +803,6 @@ int DebugInfo::LookupFunction(ucell_t addr, const char **name)
 			if (sym->dimcount > 0)
 			{
 				cursor += sizeof(sp_u_fdbg_symbol_t);
-				arr = (sp_u_fdbg_arraydim_t *)cursor;
 				cursor += sizeof(sp_u_fdbg_arraydim_t) * sym->dimcount;
 				continue;
 			}
@@ -848,7 +852,7 @@ int BaseContext::GetLastNativeError()
 
 cell_t *BaseContext::GetLocalParams()
 {
-	return (cell_t *)(m_pPlugin->memory + m_ctx.frm + (2 * sizeof(cell_t)));
+	return (cell_t *)(m_pRuntime->plugin()->memory + m_ctx.frm + (2 * sizeof(cell_t)));
 }
 
 void BaseContext::SetKey(int k, void *value)

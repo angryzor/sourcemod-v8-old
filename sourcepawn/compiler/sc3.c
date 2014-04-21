@@ -363,7 +363,7 @@ SC_FUNC int matchtag(int formaltag,int actualtag,int allowcoerce)
 				if (v->name[5] == '@')
 				{
 					usage = uPUBLIC;
-				} else if (v->name[5] = '!') {
+				} else if (v->name[5] == '!') {
 					usage = uSTOCK;
 				}
 
@@ -1211,7 +1211,7 @@ static int hier14(value *lval1)
     } /* if */
     if (lval3.sym->dim.array.level!=level)
       return error(47); /* array dimensions must match */
-    else if (ltlength<val || exactmatch && ltlength>val || val==0)
+    else if (ltlength<val || (exactmatch && ltlength>val) || val==0)
       return error(47); /* array sizes must match */
     else if (lval3.ident!=iARRAYCELL && !matchtag(lval3.sym->x.tags.index,idxtag,TRUE))
       error(229,(lval2.sym!=NULL) ? lval2.sym->name : lval3.sym->name); /* index tag mismatch */
@@ -1331,13 +1331,15 @@ static int hier13(value *lval)
       ldconst(lval2.constval,sPRI);
     array1= (lval->ident==iARRAY || lval->ident==iREFARRAY);
     array2= (lval2.ident==iARRAY || lval2.ident==iREFARRAY);
-    if (array1 && !array2) {
+    if (!array1 && array2) {
       const char *ptr = "-unknown-";
-	  if (lval->sym != NULL && lval->sym->name != NULL)
+      if (lval->sym != NULL && lval->sym->name != NULL)
         ptr = lval->sym->name;
       error(33,ptr);            /* array must be indexed */
-    } else if (!array1 && array2) {
-      char *ptr=(lval2.sym->name!=NULL) ? lval2.sym->name : "-unknown-";
+    } else if (array1 && !array2) {
+      const char *ptr = "-unknown-";
+      if (lval2.sym != NULL && lval2.sym->name != NULL)
+        ptr = lval2.sym->name;
       error(33,ptr);            /* array must be indexed */
     } /* if */
     /* ??? if both are arrays, should check dimensions */
@@ -1701,22 +1703,6 @@ static int hier2(value *lval)
     while (paranthese--)
       needtoken(')');
     return FALSE;
-  case tSTATE: {
-    constvalue *automaton;
-    constvalue *state;
-    if (sc_getstateid(&automaton,&state)) {
-      assert(automaton!=NULL);
-      assert(automaton->index==0 && automaton->name[0]=='\0' || automaton->index>0);
-      loadreg(automaton->value,sALT);
-      assert(state!=NULL);
-      ldconst(state->value,sPRI);
-      ob_eq();
-      clear_value(lval);
-      lval->ident=iEXPRESSION;
-      lval->tag=pc_addtag("bool");
-    } /* if */
-    return FALSE;
-  } /* case */
   default:
     lexpush();
     lvalue=hier1(lval);
@@ -1871,7 +1857,7 @@ restart:
         } /* if */
         if (close==']' && !(sym->tag == pc_tag_string && sym->dim.array.level == 0)) {
           /* normal array index */
-          if (lval2.constval<0 || sym->dim.array.length!=0 && sym->dim.array.length<=lval2.constval)
+          if (lval2.constval<0 || (sym->dim.array.length!=0 && sym->dim.array.length<=lval2.constval))
             error(32,sym->name);        /* array index out of bounds */
           if (lval2.constval!=0) {
             /* don't add offsets for zero subscripts */
@@ -1888,8 +1874,8 @@ restart:
           } /* if */
         } else {
           /* character index */
-          if (lval2.constval<0 || sym->dim.array.length!=0
-              && sym->dim.array.length*((8*sizeof(cell))/sCHARBITS)<=(ucell)lval2.constval)
+          if (lval2.constval<0 || (sym->dim.array.length!=0
+              && sym->dim.array.length*((8*sizeof(cell))/sCHARBITS)<=(ucell)lval2.constval))
             error(32,sym->name);        /* array index out of bounds */
           if (lval2.constval!=0) {
             /* don't add offsets for zero subscripts */
@@ -2504,8 +2490,8 @@ static int nesting=0;
                  * function argument; a literal string may be smaller than
                  * the function argument.
                  */
-                if (lval.constval>0 && arg[argidx].dim[0]!=lval.constval
-                    || lval.constval<0 && arg[argidx].dim[0] < -lval.constval)
+                if ((lval.constval>0 && arg[argidx].dim[0]!=lval.constval)
+                    || (lval.constval<0 && arg[argidx].dim[0] < -lval.constval))
                   error(47);      /* array sizes must match */
               } /* if */
             } /* if */

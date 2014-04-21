@@ -12,12 +12,12 @@ PROJECT = sourcepawn.jit.x86
 
 OBJECTS = dll_exports.cpp 	\
 	x86/jit_x86.cpp			\
-	x86/opcode_helpers.cpp	\
 	sp_vm_basecontext.cpp	\
 	sp_vm_engine.cpp	\
 	sp_vm_function.cpp	\
 	engine2.cpp			\
 	BaseRuntime.cpp		\
+	opcodes.cpp		\
 	jit_function.cpp	\
 	md5/md5.cpp			\
 	zlib/adler32.c		\

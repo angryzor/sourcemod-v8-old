@@ -68,7 +68,6 @@
 #define METAMOD_API_MAJOR			2
 #define FILENAME_1_4_EP1			"sourcemod.1.ep1" PLATFORM_EXT
 #define FILENAME_1_6_EP2			"sourcemod.2.ep2" PLATFORM_EXT
-#define FILENAME_1_6_EP2VALVE		"sourcemod.2.ep2v" PLATFORM_EXT
 #define FILENAME_1_6_EP1			"sourcemod.2.ep1" PLATFORM_EXT
 #define FILENAME_1_6_L4D			"sourcemod.2.l4d" PLATFORM_EXT
 #define FILENAME_1_6_DARKM			"sourcemod.2.darkm" PLATFORM_EXT
@@ -79,7 +78,15 @@
 #define FILENAME_1_6_PORTAL2		"sourcemod.2.portal2" PLATFORM_EXT
 #define FILENAME_1_6_CSGO			"sourcemod.2.csgo" PLATFORM_EXT
 #define FILENAME_1_6_CSS			"sourcemod.2.css" PLATFORM_EXT
+#define FILENAME_1_6_HL2DM			"sourcemod.2.hl2dm" PLATFORM_EXT
+#define FILENAME_1_6_DODS			"sourcemod.2.dods" PLATFORM_EXT
+#define FILENAME_1_6_SDK2013		"sourcemod.2.sdk2013" PLATFORM_EXT
+#define FILENAME_1_6_TF2			"sourcemod.2.tf2" PLATFORM_EXT
+#define FILENAME_1_6_ND				"sourcemod.2.nd" PLATFORM_EXT
 #define FILENAME_1_6_DOTA			"sourcemod.2.dota" PLATFORM_EXT
+#define FILENAME_1_6_BLADE			"sourcemod.2.blade" PLATFORM_EXT
+#define FILENAME_1_6_INSURGENCY		"sourcemod.2.insurgency" PLATFORM_EXT
+#define FILENAME_1_6_CONTAGION		"sourcemod.2.contagion" PLATFORM_EXT
 
 HINSTANCE g_hCore = NULL;
 bool load_attempted = false;
@@ -236,14 +243,27 @@ DLL_EXPORT METAMOD_PLUGIN *CreateInterface_MMS(const MetamodVersionInfo *mvi, co
 			filename = FILENAME_1_6_DARKM;
 			break;
 		}
-	case SOURCE_ENGINE_ORANGEBOXVALVE:
-		{
-			filename = FILENAME_1_6_EP2VALVE;
-			break;
-		}
 	case SOURCE_ENGINE_LEFT4DEAD2:
 		{
-			filename = FILENAME_1_6_L4D2;
+			const char *gamedir = mvi->GetGameDir();
+			if (strcmp(gamedir, "nucleardawn") == 0)
+			{
+				filename = FILENAME_1_6_ND;
+			}
+			else
+			{
+				filename = FILENAME_1_6_L4D2;
+			}
+			break;
+		}
+	case SOURCE_ENGINE_NUCLEARDAWN:
+		{
+			filename = FILENAME_1_6_ND;
+			break;
+		}
+	case SOURCE_ENGINE_CONTAGION:
+		{
+			filename = FILENAME_1_6_CONTAGION;
 			break;
 		}
 	case SOURCE_ENGINE_ALIENSWARM:
@@ -276,9 +296,60 @@ DLL_EXPORT METAMOD_PLUGIN *CreateInterface_MMS(const MetamodVersionInfo *mvi, co
 			filename = FILENAME_1_6_CSS;
 			break;
 		}
+	case SOURCE_ENGINE_HL2DM:
+		{
+			filename = FILENAME_1_6_HL2DM;
+			break;
+		}
+	case SOURCE_ENGINE_DODS:
+		{
+			filename = FILENAME_1_6_DODS;
+			break;
+		}
+	case SOURCE_ENGINE_SDK2013:
+		{
+			filename = FILENAME_1_6_SDK2013;
+			break;
+		}
+	case SOURCE_ENGINE_TF2:
+		{
+			filename = FILENAME_1_6_TF2;
+			break;
+		}
+	case SOURCE_ENGINE_ORANGEBOXVALVE_DEPRECATED:
+		{
+			const char *gamedir = mvi->GetGameDir();
+			if (strcmp(gamedir, "tf") == 0)
+			{
+				filename = FILENAME_1_6_TF2;
+			}
+			else if (strcmp(gamedir, "dod") == 0)
+			{
+				filename = FILENAME_1_6_DODS;
+			}
+			else if (strcmp(gamedir, "hl2mp") == 0)
+			{
+				filename = FILENAME_1_6_HL2DM;
+			}
+			else
+			{
+				return NULL;
+			}
+			break;
+		}
 	case SOURCE_ENGINE_DOTA:
 		{
 			filename = FILENAME_1_6_DOTA;
+			break;
+		}
+	case SOURCE_ENGINE_BLADE:
+		{
+			filename = FILENAME_1_6_BLADE;
+			break;
+		}
+	case SOURCE_ENGINE_INSURGENCY:
+		{
+			filename = FILENAME_1_6_INSURGENCY;
 			break;
 		}
 	default:

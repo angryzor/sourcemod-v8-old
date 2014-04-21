@@ -50,6 +50,7 @@
 #include "HalfLife2.h"
 #include "ConCommandBaseIterator.h"
 #include "logic_bridge.h"
+#include <am-utility.h>
 
 #if defined PLATFORM_POSIX
 # include <dlfcn.h>
@@ -578,23 +579,21 @@ ConsoleDetours::ConsoleDetours() : status(FeatureStatus_Unknown)
 
 void ConsoleDetours::OnSourceModAllInitialized()
 {
-	m_pForward = g_Forwards.CreateForwardEx("OnAnyCommand", ET_Hook, 3, NULL, Param_Cell,
+	m_pForward = forwardsys->CreateForwardEx("OnAnyCommand", ET_Hook, 3, NULL, Param_Cell,
 	                                        Param_String, Param_Cell);
 	sharesys->AddCapabilityProvider(NULL, this, FEATURECAP_COMMANDLISTENER);
 }
 
 void ConsoleDetours::OnSourceModShutdown()
 {
-	List<Listener*>::iterator iter = m_Listeners.begin();
-	while (iter != m_Listeners.end())
+	for (StringHashMap<IChangeableForward *>::iterator iter = m_Listeners.iter();
+		 !iter.empty();
+		 iter.next())
 	{
-		Listener *listener = (*iter);
-		g_Forwards.ReleaseForward(listener->forward);
-		delete listener;
-		iter = m_Listeners.erase(iter);
+		forwardsys->ReleaseForward(iter->value);
 	}
 
-	g_Forwards.ReleaseForward(m_pForward);
+	forwardsys->ReleaseForward(m_pForward);
 	s_GenericHooker.Disable();
 }
 
@@ -623,22 +622,15 @@ bool ConsoleDetours::AddListener(IPluginFunction *fun, const char *command)
 	}
 	else
 	{
-		const char *str = UTIL_ToLowerCase(command);
-		Listener *listener;
-		Listener **plistener = m_CmdLookup.retrieve(str);
-		if (plistener == NULL)
+		ke::AutoArray<char> str(UTIL_ToLowerCase(command));
+		IChangeableForward *forward;
+		if (!m_Listeners.retrieve(str, &forward))
 		{
-			listener = new Listener;
-			listener->forward = g_Forwards.CreateForwardEx(NULL, ET_Hook, 3, NULL, Param_Cell,
-			                                               Param_String, Param_Cell);
-			m_CmdLookup.insert(str, listener);
+			forward = forwardsys->CreateForwardEx(NULL, ET_Hook, 3, NULL, Param_Cell,
+			                                     Param_String, Param_Cell);
+			m_Listeners.insert(str, forward);
 		}
-		else
-		{
-			listener = *plistener;
-		}
-		listener->forward->AddFunction(fun);
-		delete [] str;
+		forward->AddFunction(fun);
 	}
 
 	return true;
@@ -652,14 +644,11 @@ bool ConsoleDetours::RemoveListener(IPluginFunction *fun, const char *command)
 	}
 	else
 	{
-		const char *str = UTIL_ToLowerCase(command);
-		Listener *listener;
-		Listener **plistener = m_CmdLookup.retrieve(str);
-		delete [] str;
-		if (plistener == NULL)
+		ke::AutoArray<char> str(UTIL_ToLowerCase(command));
+		IChangeableForward *forward;
+		if (!m_Listeners.retrieve(str, &forward))
 			return false;
-		listener = *plistener;
-		return listener->forward->RemoveFunction(fun);
+		return forward->RemoveFunction(fun);
 	}
 }
 
@@ -692,21 +681,20 @@ cell_t ConsoleDetours::InternalDispatch(int client, const CCommand& args)
 	if (strcmp(name, "sm") == 0)
 		result = Pl_Continue;
 
-	if (result >= Pl_Stop)
+	if (result >= Pl_Handled)
 		return result;
 	
-	Listener **plistener = m_CmdLookup.retrieve(name);
-	if (plistener == NULL)
+	IChangeableForward *forward;
+	if (!m_Listeners.retrieve(name, &forward))
 		return result;
-	Listener *listener = *plistener;
-	if (listener->forward->GetFunctionCount() == 0)
+	if (forward->GetFunctionCount() == 0)
 		return result;
 
 	cell_t result2 = Pl_Continue;
-	listener->forward->PushCell(client);
-	listener->forward->PushString(name);
-	listener->forward->PushCell(args.ArgC() - 1);
-	listener->forward->Execute(&result2, NULL);
+	forward->PushCell(client);
+	forward->PushString(name);
+	forward->PushCell(args.ArgC() - 1);
+	forward->Execute(&result2, NULL);
 
 	if (result2 > result)
 		result = result2;

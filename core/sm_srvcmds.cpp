@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 sw=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2009 AlliedModders LLC.  All rights reserved.
@@ -30,26 +30,23 @@
  */
 
 #include "sm_srvcmds.h"
-#include <sourcemod_version.h>
 #include "sm_stringutil.h"
 #include "CoreConfig.h"
 #include "ConVarManager.h"
 #include "logic_bridge.h"
+#include <sourcemod_version.h>
 
 RootConsoleMenu g_RootMenu;
 
-ConVar sourcemod_version("sourcemod_version", SM_VERSION_STRING, FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY, "SourceMod Version");
+ConVar sourcemod_version("sourcemod_version", SOURCEMOD_VERSION, FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY, "SourceMod Version");
 
 RootConsoleMenu::RootConsoleMenu()
 {
-	m_pCommands = sm_trie_create();
 	m_CfgExecDone = false;
 }
 
 RootConsoleMenu::~RootConsoleMenu()
 {
-	sm_trie_destroy(m_pCommands);
-
 	List<ConsoleEntry *>::iterator iter;
 	for (iter=m_Menu.begin(); iter!=m_Menu.end(); iter++)
 	{
@@ -129,10 +126,8 @@ bool RootConsoleMenu::_AddRootConsoleCommand(const char *cmd,
 											 IRootConsoleCommand *pHandler,
 											 bool version2)
 {
-	if (sm_trie_retrieve(m_pCommands, cmd, NULL))
-	{
+	if (m_Commands.contains(cmd))
 		return false;
-	}
 
 	/* Sort this into the menu */
 	List<ConsoleEntry *>::iterator iter = m_Menu.begin();
@@ -148,7 +143,7 @@ bool RootConsoleMenu::_AddRootConsoleCommand(const char *cmd,
 			pNew->description.assign(text);
 			pNew->version2 = version2;
 			pNew->cmd = pHandler;
-			sm_trie_insert(m_pCommands, cmd, pNew);
+			m_Commands.insert(cmd, pNew);
 			m_Menu.insert(iter, pNew);
 			inserted = true;
 			break;
@@ -163,7 +158,7 @@ bool RootConsoleMenu::_AddRootConsoleCommand(const char *cmd,
 		pNew->description.assign(text);
 		pNew->version2 = version2;
 		pNew->cmd = pHandler;
-		sm_trie_insert(m_pCommands, cmd, pNew);
+		m_Commands.insert(cmd, pNew);
 		m_Menu.push_back(pNew);
 	}
 
@@ -172,7 +167,7 @@ bool RootConsoleMenu::_AddRootConsoleCommand(const char *cmd,
 
 bool RootConsoleMenu::RemoveRootConsoleCommand(const char *cmd, IRootConsoleCommand *pHandler)
 {
-	sm_trie_delete(m_pCommands, cmd);
+	m_Commands.remove(cmd);
 
 	List<ConsoleEntry *>::iterator iter;
 	ConsoleEntry *pEntry;
@@ -291,7 +286,7 @@ void RootConsoleMenu::GotRootCmd(const CCommand &cmd)
 		CCommandArgs ocmd(cmd);
 
 		ConsoleEntry *entry;
-		if (sm_trie_retrieve(m_pCommands, cmdname, (void **)&entry))
+		if (m_Commands.retrieve(cmdname, &entry))
 		{
 			if (entry->version2)
 			{
@@ -338,11 +333,14 @@ void RootConsoleMenu::OnRootConsoleCommand(const char *cmdname, const CCommand &
 	else if (strcmp(cmdname, "version") == 0)
 	{
 		ConsolePrint(" SourceMod Version Information:");
-		ConsolePrint("    SourceMod Version: %s", SM_VERSION_STRING);
-		ConsolePrint("    SourcePawn Engine: %s (build %s)", g_pSourcePawn2->GetEngineName(), g_pSourcePawn2->GetVersionString());
+		ConsolePrint("    SourceMod Version: %s", SOURCEMOD_VERSION);
+		if (g_pSourcePawn2->IsJitEnabled())
+			ConsolePrint("    SourcePawn Engine: %s (build %s)", g_pSourcePawn2->GetEngineName(), g_pSourcePawn2->GetVersionString());
+		else
+			ConsolePrint("    SourcePawn Engine: %s (build %s NO JIT)", g_pSourcePawn2->GetEngineName(), g_pSourcePawn2->GetVersionString());
 		ConsolePrint("    SourcePawn API: v1 = %d, v2 = %d", g_pSourcePawn->GetEngineAPIVersion(), g_pSourcePawn2->GetAPIVersion());
 		ConsolePrint("    Compiled on: %s %s", __DATE__, __TIME__);
-		ConsolePrint("    Build ID: %s", SM_BUILD_UNIQUEID);
+		ConsolePrint("    Build ID: %s", SOURCEMOD_BUILD_ID);
 		ConsolePrint("    http://www.sourcemod.net/");
 	}
 }
@@ -414,5 +412,10 @@ CON_COMMAND(sm_dump_handles, "Dumps Handle usage to a file for finding Handle le
 	{
 		logicore.DumpHandles(write_handles_to_game);
 	}
+}
+
+CON_COMMAND(sm_reload_translations, "Reparses all loaded translation files")
+{
+	translator->RebuildLanguageDatabase();
 }
 

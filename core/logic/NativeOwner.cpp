@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourcePawn
  * Copyright (C) 2004-2009 AlliedModders LLC.  All rights reserved.
@@ -58,17 +58,10 @@ void CNativeOwner::AddWeakRef(const WeakNative & ref)
 
 void CNativeOwner::AddNatives(const sp_nativeinfo_t *natives)
 {
-	NativeEntry *pEntry;
+	for (const sp_nativeinfo_t *native = natives; native->func && native->name; native++)
+		g_ShareSys.AddNativeToCache(this, native);
 
-	for (unsigned int i = 0; natives[i].func != NULL && natives[i].name != NULL; i++)
-	{
-		if ((pEntry = g_ShareSys.AddNativeToCache(this, &natives[i])) == NULL)
-		{
-			continue;
-		}
-
-		m_Natives.push_back(pEntry);
-	}
+	m_natives.append(natives);
 }
 
 void CNativeOwner::PropagateMarkSerial(unsigned int serial)
@@ -85,7 +78,7 @@ void CNativeOwner::PropagateMarkSerial(unsigned int serial)
 	}
 }
 
-void CNativeOwner::UnbindWeakRef(const WeakNative & ref)
+void CNativeOwner::UnbindWeakRef(const WeakNative &ref)
 {
 	sp_native_t *native;
 	IPluginContext *pContext;
@@ -93,27 +86,14 @@ void CNativeOwner::UnbindWeakRef(const WeakNative & ref)
 	pContext = ref.pl->GetBaseContext();
 	if ((pContext->GetNativeByIndex(ref.idx, &native)) == SP_ERROR_NONE)
 	{
-		/* If there is no reference, the native must be unbound */
-		if (ref.entry == NULL)
-		{
-			native->status = SP_NATIVE_UNBOUND;
-			native->pfn = NULL;
-		}
-		/* If we've cached a reference, it's a core native we can 
-		 * rebind back to its original (this was a replacement).
-		 */
-		else
-		{
-			native->pfn = ref.entry->func;
-		}
+		native->status = SP_NATIVE_UNBOUND;
+		native->pfn = NULL;
 	}
 }
 
 void CNativeOwner::DropEverything()
 {
-	NativeEntry *pEntry;
 	List<WeakNative>::iterator iter;
-	List<NativeEntry *>::iterator ntv_iter;
 
 	/* Unbind and remove all weak references to us */
 	iter = m_WeakRefs.begin();
@@ -123,23 +103,17 @@ void CNativeOwner::DropEverything()
 		iter = m_WeakRefs.erase(iter);
 	}
 
-	/* Unmark our replacement natives */
-	ntv_iter = m_ReplacedNatives.begin();
-	while (ntv_iter != m_ReplacedNatives.end())
-	{
-		pEntry = (*ntv_iter);
-		pEntry->replacement.func = NULL;
-		pEntry->replacement.owner = NULL;
-		ntv_iter = m_ReplacedNatives.erase(ntv_iter);
-	}
-
 	/* Strip all of our natives from the cache */
-	ntv_iter = m_Natives.begin();
-	while (ntv_iter != m_Natives.end())
-	{
-		g_ShareSys.ClearNativeFromCache(this, (*ntv_iter)->name);
-		ntv_iter = m_Natives.erase(ntv_iter);
+	for (size_t i = 0; i < m_natives.length(); i++) {
+		const sp_nativeinfo_t *natives = m_natives[i];
+		for (const sp_nativeinfo_t *native = natives; native->func && native->name; native++)
+			g_ShareSys.ClearNativeFromCache(this, native->name);
 	}
+	m_natives.clear();
+
+	for (size_t i = 0; i < m_fakes.length(); i++)
+		g_ShareSys.ClearNativeFromCache(this, m_fakes[i]->name());
+	m_fakes.clear();
 }
 
 void CNativeOwner::DropWeakRefsTo(CPlugin *pPlugin)
@@ -166,9 +140,4 @@ void CNativeOwner::DropRefsTo(CPlugin *pPlugin)
 {
 	m_Dependents.remove(pPlugin);
 	DropWeakRefsTo(pPlugin);
-}
-
-void CNativeOwner::AddReplacedNative(NativeEntry *pEntry)
-{
-	m_ReplacedNatives.push_back(pEntry);
 }

@@ -1,5 +1,5 @@
 /**
- * vim: set ts=4 :
+ * vim: set ts=4 sw=4 tw=99 noet :
  * =============================================================================
  * SourceMod
  * Copyright (C) 2004-2008 AlliedModders LLC.  All rights reserved.
@@ -35,6 +35,7 @@
 #include "common_logic.h"
 #include "ShareSys.h"
 #include "ExtensionSys.h"
+#include "PluginSys.h"
 
 HandleSystem g_HandleSys;
 
@@ -58,8 +59,6 @@ HandleSystem::HandleSystem()
 	m_Types = new QHandleType[HANDLESYS_TYPEARRAY_SIZE];
 	memset(m_Types, 0, sizeof(QHandleType) * HANDLESYS_TYPEARRAY_SIZE);
 
-	m_strtab = new BaseStringTable(512);
-
 	m_TypeTail = 0;
 }
 
@@ -67,7 +66,6 @@ HandleSystem::~HandleSystem()
 {
 	delete [] m_Handles;
 	delete [] m_Types;
-	delete m_strtab;
 }
 
 
@@ -141,12 +139,10 @@ HandleType_t HandleSystem::CreateType(const char *name,
 
 	if (name && name[0] != '\0')
 	{
-		if (m_TypeLookup.retrieve(name))
+		if (m_TypeLookup.contains(name))
 		{
 			if (err)
-			{
 				*err = HandleError_Parameter;
-			}
 			return 0;
 		}
 	}
@@ -208,10 +204,8 @@ HandleType_t HandleSystem::CreateType(const char *name,
 	pType->dispatch = dispatch;
 	if (name && name[0] != '\0')
 	{
-		pType->nameIdx = m_strtab->AddString(name);
+		pType->name = new ke::AString(name);
 		m_TypeLookup.insert(name, pType);
-	} else {
-		pType->nameIdx = -1;
 	}
 
 	pType->opened = 0;
@@ -239,21 +233,14 @@ HandleType_t HandleSystem::CreateType(const char *name,
 	return index;
 }
 
-bool HandleSystem::FindHandleType(const char *name, HandleType_t *type)
+bool HandleSystem::FindHandleType(const char *name, HandleType_t *aResult)
 {
-	QHandleType **typepp = m_TypeLookup.retrieve(name);
-
-	if (!typepp)
-	{
+	QHandleType *type;
+	if (!m_TypeLookup.retrieve(name, &type))
 		return false;
-	}
 
-	unsigned int offset = *typepp - m_Types;
-
-	if (type)
-	{
-		*type = offset;
-	}
+	if (aResult)
+		*aResult = type - m_Types;
 
 	return true;
 }
@@ -910,10 +897,6 @@ bool HandleSystem::RemoveType(HandleType_t type, IdentityToken_t *ident)
 		m_Types[++m_FreeTypes].freeID = type;
 	}
 
-	/* Invalidate the type now */
-	IHandleTypeDispatch *dispatch = pType->dispatch;
-	pType->dispatch = NULL;
-
 	/* Make sure nothing is using this type. */
 	if (pType->opened)
 	{
@@ -935,14 +918,12 @@ bool HandleSystem::RemoveType(HandleType_t type, IdentityToken_t *ident)
 		}
 	}
 
-	/* Remove it from the type cache. */
-	if (pType->nameIdx != -1)
-	{
-		const char *typeName;
+	/* Invalidate the type now */
+	pType->dispatch = NULL;
 
-		typeName = m_strtab->GetString(pType->nameIdx);
-		m_TypeLookup.remove(typeName);
-	}
+	/* Remove it from the type cache. */
+	if (pType->name)
+		m_TypeLookup.remove(pType->name->chars());
 
 	return true;
 }
@@ -981,12 +962,11 @@ bool HandleSystem::InitAccessDefaults(TypeAccess *pTypeAccess, HandleAccess *pHa
 
 bool HandleSystem::TryAndFreeSomeHandles()
 {
-	IPluginIterator *pl_iter = scripts->GetPluginIterator();
 	IPlugin *highest_owner = NULL;
 	unsigned int highest_handle_count = 0;
 
 	/* Search all plugins */
-	while (pl_iter->MorePlugins())
+	for (IPluginIterator *pl_iter = g_PluginSys.GetPluginIterator(); pl_iter->MorePlugins(); pl_iter->NextPlugin())
 	{
 		IPlugin *plugin = pl_iter->GetPlugin();
 		IdentityToken_t *identity = plugin->GetIdentity();
@@ -1015,8 +995,6 @@ bool HandleSystem::TryAndFreeSomeHandles()
 			highest_owner = plugin;
 			highest_handle_count = handle_count;
 		}
-
-		pl_iter->NextPlugin();
 	}
 
 	if (highest_owner == NULL || highest_handle_count == 0)
@@ -1027,6 +1005,59 @@ bool HandleSystem::TryAndFreeSomeHandles()
 	HANDLE_LOG_VERY_BAD("[SM] MEMORY LEAK DETECTED IN PLUGIN (file \"%s\")", highest_owner->GetFilename());
 	HANDLE_LOG_VERY_BAD("[SM] Unloading plugin to free %d handles.", highest_handle_count);
 	HANDLE_LOG_VERY_BAD("[SM] Contact the author(s) of this plugin to correct this error.", highest_handle_count);
+	HANDLE_LOG_VERY_BAD("--------------------------------------------------------------------------");
+
+	const IdentityToken_t *pIdentity = highest_owner->GetIdentity();
+	unsigned int total = 0, highest_index = 0, total_size = 0, size;
+	unsigned int * pCount = new unsigned int[HANDLESYS_TYPEARRAY_SIZE+1];
+	memset(pCount, 0, ((HANDLESYS_TYPEARRAY_SIZE + 1) * sizeof(unsigned int)));
+
+	for (unsigned int i = 1; i <= m_HandleTail; ++i)
+	{
+		const QHandle &Handle = m_Handles[i];
+		if (Handle.set != HandleSet_Used || Handle.owner != pIdentity)
+		{
+			continue;
+		}
+
+		++pCount[Handle.type];
+		++total;
+
+		if (Handle.type >= highest_index)
+		{
+			highest_index = ((Handle.type) + 1);
+		}
+
+		if (Handle.clone != 0)
+		{
+			continue;
+		}
+
+		if (m_Types[Handle.type].dispatch->GetHandleApproxSize(Handle.type, Handle.object, &size))
+		{
+			total_size += size;
+		}
+	}
+
+	const char * pTypeName = NULL;
+
+	for (unsigned int i = 0; i < highest_index; ++i)
+	{
+		if (pCount[i] == 0)
+		{
+			continue; /* We may have gaps, it's fine. */
+		}
+
+		if (m_Types[i].name)
+			pTypeName = m_Types[i].name->chars();
+		else
+			pTypeName = "ANON";
+
+		HANDLE_LOG_VERY_BAD("Type\t%-20.20s|\tCount\t%u", pTypeName, pCount[i]);
+	}
+
+	HANDLE_LOG_VERY_BAD("-- Approximately %d bytes of memory are in use by (%u) Handles.\n", total_size, total);
+	delete [] pCount;
 
 	highest_owner->GetBaseContext()->ThrowNativeErrorEx(SP_ERROR_MEMACCESS, "Memory leak");
 
@@ -1085,10 +1116,8 @@ void HandleSystem::Dump(HANDLE_REPORTER rep)
 		unsigned int size = 0;
 		unsigned int parentIdx;
 		bool bresult;
-		if (pType->nameIdx != -1)
-		{
-			type = m_strtab->GetString(pType->nameIdx);
-		}
+		if (pType->name)
+			type = pType->name->chars();
 
 		if ((parentIdx = m_Handles[i].clone) != 0)
 		{

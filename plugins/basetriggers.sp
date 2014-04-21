@@ -75,13 +75,10 @@ public OnPluginStart()
 	g_Cvar_TimeleftInterval = CreateConVar("sm_timeleft_interval", "0.0", "Display timeleft every x seconds. Default 0.", 0, true, 0.0, true, 1800.0);
 	g_Cvar_FriendlyFire = FindConVar("mp_friendlyfire");
 	
-	AddCommandListener(Command_Say, "say");
-	AddCommandListener(Command_Say, "say2");
-	AddCommandListener(Command_Say, "say_team");
-	
 	RegConsoleCmd("timeleft", Command_Timeleft);
 	RegConsoleCmd("nextmap", Command_Nextmap);
 	RegConsoleCmd("motd", Command_Motd);
+	RegConsoleCmd("ff", Command_FriendlyFire);
 	
 	HookConVarChange(g_Cvar_TimeleftInterval, ConVarChange_TimeleftInterval);
 
@@ -236,29 +233,29 @@ public Action:Command_Motd(client, args)
 	return Plugin_Handled;
 }
 
-public Action:Command_Say(client, const String:command[], argc)
+public Action:Command_FriendlyFire(client, args)
 {
-	decl String:text[192];
-	new startidx = 0;
-	if (GetCmdArgString(text, sizeof(text)) < 1)
+	if (client == 0)
 	{
-		return Plugin_Continue;
+		ReplyToCommand(client, "[SM] %t", "Command is in-game only");
+		return Plugin_Handled;
 	}
+
+	if (!IsClientInGame(client))
+		return Plugin_Handled;
 	
-	if (text[strlen(text)-1] == '"')
-	{
-		text[strlen(text)-1] = '\0';
-		startidx = 1;
-	}
+	ShowFriendlyFire(client);
 
-	if (strcmp(command, "say2", false) == 0)
-		startidx += 4;
+	return Plugin_Handled;
+}
 
-	if (strcmp(text[startidx], "timeleft", false) == 0)
+public OnClientSayCommand_Post(client, const String:command[], const String:sArgs[])
+{
+	if (strcmp(sArgs, "timeleft", false) == 0)
 	{
 		ShowTimeLeft(client, TIMELEFT_ALL_MAYBE);
 	}
-	else if (strcmp(text[startidx], "thetime", false) == 0)
+	else if (strcmp(sArgs, "thetime", false) == 0)
 	{
 		decl String:ctime[64];
 		FormatTime(ctime, 64, NULL_STRING);
@@ -272,31 +269,11 @@ public Action:Command_Say(client, const String:command[], argc)
 			PrintToChat(client,"[SM] %t", "Thetime", ctime);
 		}
 	}
-	else if (strcmp(text[startidx], "ff", false) == 0 || strcmp(text[startidx], "/ff", false) == 0)
+	else if (strcmp(sArgs, "ff", false) == 0)
 	{
-		if (g_Cvar_FriendlyFire != INVALID_HANDLE)
-		{
-			decl String:phrase[24];
-			if (GetConVarBool(g_Cvar_FriendlyFire))
-			{
-				strcopy(phrase, sizeof(phrase), "Friendly Fire On");
-			}
-			else
-			{
-				strcopy(phrase, sizeof(phrase), "Friendly Fire Off");
-			}
-		
-			if(GetConVarInt(g_Cvar_TriggerShow))
-			{
-				PrintToChatAll("[SM] %t", phrase);
-			}
-			else
-			{
-				PrintToChat(client,"[SM] %t", phrase);
-			}
-		}
+		ShowFriendlyFire(client);
 	}
-	else if (strcmp(text[startidx], "currentmap", false) == 0)
+	else if (strcmp(sArgs, "currentmap", false) == 0)
 	{
 		decl String:map[64];
 		GetCurrentMap(map, sizeof(map));
@@ -310,7 +287,7 @@ public Action:Command_Say(client, const String:command[], argc)
 			PrintToChat(client,"[SM] %t", "Current Map", map);
 		}
 	}
-	else if (strcmp(text[startidx], "nextmap", false) == 0)
+	else if (strcmp(sArgs, "nextmap", false) == 0)
 	{
 		decl String:map[32];
 		GetNextMap(map, sizeof(map));
@@ -338,12 +315,10 @@ public Action:Command_Say(client, const String:command[], argc)
 			}
 		}
 	}
-	else if (strcmp(text[startidx], "motd", false) == 0)
+	else if (strcmp(sArgs, "motd", false) == 0)
 	{
 		ShowMOTDPanel(client, "Message Of The Day", "motd", MOTDPANEL_TYPE_INDEX);
 	}
-	
-	return Plugin_Continue;
 }
 
 ShowTimeLeft(client, who)
@@ -523,5 +498,30 @@ ShowTimeLeft(client, who)
 	if (client == 0)
 	{
 		PrintToServer("[SM] %s", finalOutput);
+	}
+}
+
+ShowFriendlyFire(client)
+{
+	if (g_Cvar_FriendlyFire != INVALID_HANDLE)
+	{
+		decl String:phrase[24];
+		if (GetConVarBool(g_Cvar_FriendlyFire))
+		{
+			strcopy(phrase, sizeof(phrase), "Friendly Fire On");
+		}
+		else
+		{
+			strcopy(phrase, sizeof(phrase), "Friendly Fire Off");
+		}
+	
+		if(GetConVarInt(g_Cvar_TriggerShow))
+		{
+			PrintToChatAll("[SM] %t", phrase);
+		}
+		else
+		{
+			PrintToChat(client,"[SM] %t", phrase);
+		}
 	}
 }

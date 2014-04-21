@@ -33,6 +33,8 @@
 #include <IPluginSys.h>
 #include <IHandleSys.h>
 #include <IForwardSys.h>
+#include <ISourceMod.h>
+#include <am-utility.h>
 
 HandleType_t g_GlobalFwdType = 0;
 HandleType_t g_PrivateFwdType = 0;
@@ -187,8 +189,9 @@ static cell_t sm_GetForwardFunctionCount(IPluginContext *pContext, const cell_t 
 	Handle_t hndl = static_cast<Handle_t>(params[1]);
 	HandleError err;
 	IForward *pForward;
+	HandleSecurity sec(pContext->GetIdentity(), g_pCoreIdent);
 
-	if ((err=handlesys->ReadHandle(hndl, g_GlobalFwdType, NULL, (void **)&pForward))
+	if ((err=handlesys->ReadHandle(hndl, g_GlobalFwdType, &sec, (void **)&pForward))
 		!= HandleError_None)
 	{
 		return pContext->ThrowNativeError("Invalid forward handle %x (error %d)", hndl, err);
@@ -204,8 +207,9 @@ static cell_t sm_AddToForward(IPluginContext *pContext, const cell_t *params)
 	HandleError err;
 	IChangeableForward *pForward;
 	IPlugin *pPlugin;
+	HandleSecurity sec(pContext->GetIdentity(), g_pCoreIdent);
 
-	if ((err=handlesys->ReadHandle(fwdHandle, g_PrivateFwdType, NULL, (void **)&pForward))
+	if ((err=handlesys->ReadHandle(fwdHandle, g_PrivateFwdType, &sec, (void **)&pForward))
 		!= HandleError_None)
 	{
 		return pContext->ThrowNativeError("Invalid private forward handle %x (error %d)", fwdHandle, err);
@@ -240,8 +244,9 @@ static cell_t sm_RemoveFromForward(IPluginContext *pContext, const cell_t *param
 	HandleError err;
 	IChangeableForward *pForward;
 	IPlugin *pPlugin;
+	HandleSecurity sec(pContext->GetIdentity(), g_pCoreIdent);
 
-	if ((err=handlesys->ReadHandle(fwdHandle, g_PrivateFwdType, NULL, (void **)&pForward))
+	if ((err=handlesys->ReadHandle(fwdHandle, g_PrivateFwdType, &sec, (void **)&pForward))
 		!= HandleError_None)
 	{
 		return pContext->ThrowNativeError("Invalid private forward handle %x (error %d)", fwdHandle, err);
@@ -276,8 +281,9 @@ static cell_t sm_RemoveAllFromForward(IPluginContext *pContext, const cell_t *pa
 	HandleError err;
 	IChangeableForward *pForward;
 	IPlugin *pPlugin;
+	HandleSecurity sec(pContext->GetIdentity(), g_pCoreIdent);
 
-	if ((err=handlesys->ReadHandle(fwdHandle, g_PrivateFwdType, NULL, (void **)&pForward))
+	if ((err=handlesys->ReadHandle(fwdHandle, g_PrivateFwdType, &sec, (void **)&pForward))
 		!= HandleError_None)
 	{
 		return pContext->ThrowNativeError("Invalid private forward handle %x (error %d)", fwdHandle, err);
@@ -339,12 +345,13 @@ static cell_t sm_CallStartForward(IPluginContext *pContext, const cell_t *params
 	Handle_t hndl;
 	HandleError err;
 	IForward *pForward;
+	HandleSecurity sec(pContext->GetIdentity(), g_pCoreIdent);
 
 	ResetCall();
 
 	hndl = static_cast<Handle_t>(params[1]);
 
-	if ((err=handlesys->ReadHandle(hndl, g_GlobalFwdType, NULL, (void **)&pForward))
+	if ((err=handlesys->ReadHandle(hndl, g_GlobalFwdType, &sec, (void **)&pForward))
 		!= HandleError_None)
 	{
 		return pContext->ThrowNativeError("Invalid forward handle %x (error %d)", hndl, err);
@@ -584,6 +591,63 @@ static cell_t sm_CallCancel(IPluginContext *pContext, const cell_t *params)
 	return 1;
 }
 
+struct SMFrameActionData
+{
+	SMFrameActionData(Handle_t handle, Handle_t ownerhandle, cell_t data) : handle(handle), ownerhandle(ownerhandle), data(data)
+	{
+	};
+	Handle_t handle;
+	Handle_t ownerhandle;
+	cell_t data;
+};
+
+static void PawnFrameAction(void *pData)
+{
+	ke::AutoPtr<SMFrameActionData> frame(reinterpret_cast<SMFrameActionData *>(pData));
+	IPlugin *pPlugin = pluginsys->PluginFromHandle(frame->ownerhandle, NULL);
+	if (!pPlugin)
+	{
+		return;
+	}
+
+	IChangeableForward *pForward;
+	HandleSecurity sec(pPlugin->GetIdentity(), g_pCoreIdent);
+	if (handlesys->ReadHandle(frame->handle, g_PrivateFwdType, &sec, (void **)&pForward) != HandleError_None)
+	{
+		return;
+	}
+
+	pForward->PushCell(frame->data);
+	pForward->Execute(NULL);
+
+	handlesys->FreeHandle(frame->handle, &sec);
+}
+
+static cell_t sm_AddFrameAction(IPluginContext *pContext, const cell_t *params)
+{
+	IPlugin *pPlugin = pluginsys->FindPluginByContext(pContext->GetContext());
+	IPluginFunction *pFunction = pPlugin->GetBaseContext()->GetFunctionById(params[1]);
+	if (!pFunction)
+	{
+		return pContext->ThrowNativeError("Invalid function id (%X)", params[1]);
+	}
+
+	IChangeableForward *pForward = forwardsys->CreateForwardEx(NULL, ET_Ignore, 1, NULL, Param_Cell);
+	IdentityToken_t *pIdentity = pContext->GetIdentity();
+	Handle_t Handle = handlesys->CreateHandle(g_PrivateFwdType, pForward, pIdentity, g_pCoreIdent, NULL);
+	if (Handle == BAD_HANDLE)
+	{
+		forwardsys->ReleaseForward(pForward);
+		return 0;
+	}
+
+	pForward->AddFunction(pFunction);
+
+	SMFrameActionData *pData = new SMFrameActionData(Handle, pPlugin->GetMyHandle(), params[2]);
+	g_pSM->AddFrameAction(PawnFrameAction, pData);
+	return 1;
+}
+
 REGISTER_NATIVES(functionNatives)
 {
 	{"GetFunctionByName",		sm_GetFunctionByName},
@@ -605,5 +669,6 @@ REGISTER_NATIVES(functionNatives)
 	{"Call_PushStringEx",		sm_CallPushStringEx},
 	{"Call_Finish",				sm_CallFinish},
 	{"Call_Cancel",				sm_CallCancel},
+	{"RequestFrame",			sm_AddFrameAction},
 	{NULL,						NULL},
 };
