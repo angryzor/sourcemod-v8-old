@@ -38,6 +38,7 @@
 #include "PlayerManager.h"
 #include "logic_bridge.h"
 #include "sourcemod.h"
+#include <am-utility.h>
 
 #define LADJUST			0x00000004		/* left adjustment */
 #define ZEROPAD			0x00000080		/* zero (as opposed to blank) pad */
@@ -212,6 +213,12 @@ void AddFloat(char **buf_p, size_t &maxlen, double fval, int width, int prec, in
 	int fieldlength;			// for padding
 	int significant_digits = 0;	// number of significant digits written
 	const int MAX_SIGNIFICANT_DIGITS = 16;
+
+	if (ke::IsNaN(fval))
+	{
+		AddString(buf_p, maxlen, "NaN", width, prec);
+		return;
+	}
 
 	// default precision
 	if (prec < 0)

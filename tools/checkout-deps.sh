@@ -57,6 +57,7 @@ checkout ()
     hg clone https://hg.alliedmods.net/$path/$name
   else
     cd $name
+    sed -i 's/http:/https:/g' .hg/hgrc
     hg pull -u
     cd ..
   fi
@@ -79,7 +80,7 @@ if [ $ismac -eq 0 ]; then
 
   # Add more SDKs for Windows only
   if [ $iswin -eq 1 ]; then
-    sdks+=( darkm swarm bgt eye )
+    sdks+=( darkm swarm bgt eye contagion )
   fi
 fi
 
@@ -92,7 +93,7 @@ done
 
 `python -c "import ambuild2"`
 if [ $? -eq 1 ]; then
-  name=ambuild
+  name=
   path=ambuild
   checkout
 
