@@ -1,4 +1,5 @@
 #include "SPAPIEmulation.h"
+#include <cstdlib>
 
 namespace SMV8
 {
@@ -68,7 +69,7 @@ namespace SMV8
 
 			char *phys_addr = heap + local_addr;
 			cell_t *size = (cell_t*)phys_addr - 1;
-			if(*size * sizeof(cell_t) != hp - phys_addr)
+			if(static_cast<unsigned int>(*size) * sizeof(cell_t) != hp - phys_addr)
 			{
 				return SP_ERROR_INVALID_ADDRESS;
 			}

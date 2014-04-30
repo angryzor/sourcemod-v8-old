@@ -5,6 +5,8 @@
 
 #include <ISourceMod.h>
 #include <sp_vm_api.h>
+#undef min
+#undef max
 #include <string>
 #include <ILibrarySys.h>
 

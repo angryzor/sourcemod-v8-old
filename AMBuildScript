@@ -67,6 +67,7 @@ class SMConfig(object):
     self.generated_headers = None
     self.mms_root = None
     self.mysql_root = None
+    self.v8_root = None
     self.spcomp = None
     self.smx_files = {}
     self.versionlib = None
@@ -118,6 +119,10 @@ class SMConfig(object):
           break
       if not self.mysql_root:
         raise Exception('Could not find a path to MySQL!')
+
+    self.v8_root = ResolveEnvPath('V8', 'v8')
+    if not self.v8_root:
+      raise Exception('Could not find a path to V8!')
 
   def configure(self):
     builder.AddConfigureFile('pushbuild.txt')
@@ -472,6 +477,7 @@ builder.RunBuildScripts(
     'sourcepawn/compiler/AMBuilder',
     'sourcepawn/jit/AMBuilder',
     'plugins/AMBuilder',
+	'v8/AMBuilder',
     'tools/buildbot/PackageScript',
   ],
   {

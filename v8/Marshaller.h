@@ -44,11 +44,11 @@ namespace SMV8
 			Handle<Array> PopArray(ReferenceInfo *ri);
 			void CopyBackRefs();
 		private:
+			Isolate& isolate;
+			NativeData& native;
 			PluginRuntime& runtime;
 			IPluginContext& ctx;
-			NativeData& native;
 			std::stack<ReferenceInfo*> refs;
-			Isolate& isolate;
 		};
 	}
 }

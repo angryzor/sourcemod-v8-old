@@ -1,7 +1,7 @@
 #include "SPAPIEmulation.h"
 #include <IShareSys.h>
 #include <string>
-#include <sp_vm_function.h>
+//#include <sp_vm_function.h>
 #include "Marshaller.h"
 #include <sstream>
 

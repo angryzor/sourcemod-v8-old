@@ -287,7 +287,7 @@ bool SourceModBase::InitializeSourceMod(char *error, size_t maxlength, bool late
 	{
 		if (error && maxlength)
 		{
-			snprintf(error, maxlength, "Can't initialize V8 engine: ", err);
+			snprintf(error, maxlength, "Can't initialize V8 engine: %s", err);
 		}
 		return false;
 	}
